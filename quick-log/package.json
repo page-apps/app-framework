@@ -1,0 +1,31 @@
+{
+  "name": "@repo-apps/quick-log",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "pnpm typecheck && astro build && node scripts/validate-build.mjs",
+    "preview": "astro preview",
+    "check": "pnpm typecheck",
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --filter @repo-apps/astro-check-compat check:quick-log",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "validate:data": "node scripts/validate-data.ts"
+  },
+  "dependencies": {
+    "@repo-apps/credentials": "workspace:*",
+    "@repo-apps/repo-client": "workspace:*",
+    "@repo-apps/runtime": "workspace:*",
+    "@repo-apps/ui": "workspace:*",
+    "astro": "7.2.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

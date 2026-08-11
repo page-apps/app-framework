@@ -1,0 +1,15 @@
+packages:
+  - packages/*
+  - quick-log
+  - tools/*
+
+peerDependencyRules:
+  allowedVersions:
+    "@astrojs/check>typescript": "7.0.2"
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+
+onlyBuiltDependencies:
+  - esbuild

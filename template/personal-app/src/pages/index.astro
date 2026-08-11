@@ -1,0 +1,129 @@
+---
+import { SECURITY_DISCLOSURE } from "@repo-apps/ui";
+import manifest from "../../repo-app.config";
+import demo from "../../demo/records.json";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    />
+    <meta name="generator" content={Astro.generator} />
+    <title>{manifest.title}</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Repo Apps Harness</p>
+        <h1>{manifest.title}</h1>
+        <p class="mode" data-testid="mode-indicator">Demo mode · read only</p>
+      </header>
+
+      <section aria-labelledby="records-heading">
+        <h2 id="records-heading">Example records</h2>
+        <ul data-testid="record-list">
+          {demo.records.map((record) => (
+            <li>
+              <strong>{record.title}</strong>
+              <p>{record.body}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <aside aria-labelledby="connect-heading">
+        <h2 id="connect-heading">Connect your repository</h2>
+        <p>
+          Replace this starter view with your domain UI and connect it through
+          <code>@repo-apps/astro-shell</code>. Application code receives a repository
+          capability and must never read a raw token or call GitHub directly.
+        </p>
+        <p class="disclosure">{SECURITY_DISCLOSURE}</p>
+        <button type="button" disabled data-testid="connect-button">Connect GitHub</button>
+      </aside>
+    </main>
+  </body>
+</html>
+
+<style>
+  :root {
+    color-scheme: light dark;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    background: #f5f3ee;
+    color: #1b2430;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  main {
+    width: min(48rem, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 4rem 0;
+  }
+
+  header,
+  section,
+  aside {
+    margin-block-end: 1rem;
+    padding: 1.5rem;
+    border: 1px solid #d7d1c6;
+    border-radius: 0.75rem;
+    background: #fffdf8;
+  }
+
+  h1,
+  h2,
+  p {
+    margin-block-start: 0;
+  }
+
+  .eyebrow,
+  .mode {
+    color: #765c21;
+    font-weight: 700;
+  }
+
+  li + li {
+    margin-block-start: 1rem;
+  }
+
+  .disclosure {
+    padding: 1rem;
+    border-inline-start: 0.25rem solid #c28b16;
+    background: #fff5d9;
+  }
+
+  button {
+    padding: 0.65rem 1rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      background: #14181f;
+      color: #edf0f5;
+    }
+
+    header,
+    section,
+    aside {
+      border-color: #3c4655;
+      background: #202630;
+    }
+
+    .eyebrow,
+    .mode {
+      color: #e8c66d;
+    }
+
+    .disclosure {
+      background: #403617;
+    }
+  }
+</style>

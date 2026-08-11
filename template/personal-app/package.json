@@ -1,0 +1,25 @@
+{
+  "name": "@repo-apps/personal-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check",
+    "test": "node --test",
+    "validate:data": "node scripts/validate-data.mjs",
+    "check": "pnpm typecheck && pnpm test && pnpm validate:data && pnpm build"
+  },
+  "dependencies": {
+    "@repo-apps/astro-shell": "^0.1.0",
+    "@repo-apps/runtime": "^0.1.0",
+    "@repo-apps/ui": "^0.1.0",
+    "astro": "7.2.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "typescript": "7.0.2"
+  }
+}

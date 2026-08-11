@@ -1,0 +1,25 @@
+{
+  "name": "repo-apps-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An opinionated harness for personal, repository-backed Astro applications.",
+  "type": "module",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @repo-apps/quick-log dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm --filter './packages/*' build && pnpm -r --if-present typecheck",
+    "test": "pnpm run test:unit",
+    "test:unit": "pnpm -r --if-present test",
+    "test:e2e": "playwright test",
+    "validate:data": "pnpm -r --if-present validate:data",
+    "check": "pnpm run typecheck && pnpm run test:unit && pnpm run validate:data && pnpm run build"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "typescript": "7.0.2"
+  }
+}
