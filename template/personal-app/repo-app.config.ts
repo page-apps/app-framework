@@ -10,7 +10,7 @@ export default defineRepoApp({
   },
   auth: {
     methods: ["pat"],
-    persistence: "optional",
+    persistence: "session",
     sharedCredential: false,
   },
   demo: {

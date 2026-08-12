@@ -56,6 +56,8 @@ export interface RepoAppShell<T> {
   saveDraft(data: T, path?: string): Promise<OfflineDraft<T>>;
   restoreDraft(path?: string): Promise<OfflineDraft<T> | null>;
   clearDraft(path?: string): Promise<void>;
+  refreshCommitStatus(): Promise<void>;
+  /** @deprecated Use refreshCommitStatus so fixed-data validation is handled correctly. */
   refreshDeployment(): Promise<void>;
   disconnect(): Promise<void>;
   dispose(): void;
@@ -99,7 +101,7 @@ export function createRepoAppShell<T>(options: RepoAppShellOptions<T>): RepoAppS
       await options.connect();
       const access = await options.client.verifyAccess();
       if (!access.canRead) {
-        dispatch({ type: "UNAUTHORISED", message: "The credential cannot read this app repository." });
+        dispatch({ type: "UNAUTHORISED", message: "The credential cannot read this app's configured data repository." });
         return;
       }
       await load();
@@ -244,9 +246,22 @@ export function createRepoAppShell<T>(options: RepoAppShellOptions<T>): RepoAppS
     dispatch({ type: "MUTATION_QUEUED", mutation });
   }
 
-  async function refreshDeployment(): Promise<void> {
+  async function refreshCommitStatus(): Promise<void> {
     if (!current.commitSha) return;
     try {
+      if (options.runtime.repository.mode === "fixed") {
+        const pipeline = options.runtime.dataPipeline;
+        if (!pipeline) return;
+        const workflow = await options.client.getWorkflowStatus(current.commitSha, pipeline.workflow);
+        if (workflow.phase === "queued" || workflow.phase === "building") {
+          dispatch({ type: "DATA_VALIDATION_START" });
+        } else if (workflow.phase === "succeeded") {
+          dispatch({ type: "DATA_VALIDATION_SUCCESS" });
+        } else if (workflow.phase === "failed" || workflow.phase === "cancelled") {
+          dispatch({ type: "DATA_VALIDATION_FAILURE", message: "The private data workflow did not complete successfully." });
+        }
+        return;
+      }
       const [workflow, pages] = await Promise.all([
         options.client.getWorkflowStatus(current.commitSha),
         options.client.getPagesDeploymentStatus(current.commitSha),
@@ -263,6 +278,10 @@ export function createRepoAppShell<T>(options: RepoAppShellOptions<T>): RepoAppS
     }
   }
 
+  async function refreshDeployment(): Promise<void> {
+    await refreshCommitStatus();
+  }
+
   async function disconnect(): Promise<void> {
     dispatch({ type: "DISCONNECT" });
   }
@@ -275,7 +294,7 @@ export function createRepoAppShell<T>(options: RepoAppShellOptions<T>): RepoAppS
       return () => listeners.delete(listener);
     },
     start, connect, load, markDirty, saveFile, deleteFile, batchCommit,
-    saveDraft, restoreDraft, clearDraft, refreshDeployment, disconnect,
+    saveDraft, restoreDraft, clearDraft, refreshCommitStatus, refreshDeployment, disconnect,
     dispose() { disposed = true; listeners.clear(); },
   };
 }
@@ -284,18 +303,20 @@ function validateBoundary<T>(options: RepoAppShellOptions<T>): void {
   if (options.manifest.id !== options.runtime.appId) {
     throw new Error("Manifest and runtime app identities do not match.");
   }
-  if (options.manifest.repository.mode !== "self") throw new Error("Only self repository mode is supported.");
   const configured = options.client.repository;
   const runtime = options.runtime.repository;
+  if (options.manifest.repository.mode !== runtime.mode) {
+    throw new Error("Manifest and runtime repository modes do not match.");
+  }
   if (configured.owner !== runtime.owner || configured.name !== runtime.name || configured.branch !== runtime.branch) {
-    throw new Error("Repository client must be bound to the app's resolved self repository.");
+    throw new Error("Repository client must be bound to the app's resolved data repository.");
   }
 }
 
 function handleError<T>(error: unknown, dispatch: (action: RuntimeAction<T>) => void): void {
   const code = errorCode(error);
   if (code === "authentication") dispatch({ type: "TOKEN_EXPIRED", message: "Connect a valid GitHub credential." });
-  else if (code === "permission" || code === "not-found") dispatch({ type: "UNAUTHORISED", message: "The credential cannot access this app repository." });
+  else if (code === "permission" || code === "not-found") dispatch({ type: "UNAUTHORISED", message: "The credential cannot access this app's configured data repository." });
   else if (code === "rate-limit") {
     const retry = retryAt(error);
     dispatch(retry === undefined ? { type: "RATE_LIMITED" } : { type: "RATE_LIMITED", retryAt: retry });

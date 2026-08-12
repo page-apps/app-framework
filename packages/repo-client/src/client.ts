@@ -22,7 +22,7 @@ import type {
   RepositoryClientOptions,
   RepositoryEntry,
   RepositoryFile,
-  SelfRepository,
+  RepositoryTarget,
   UpdateFileInput,
   WorkflowPhase,
   WorkflowStatus,
@@ -34,7 +34,7 @@ export function createRepositoryClient(options: RepositoryClientOptions): Reposi
 }
 
 export class GitHubRepositoryClient implements RepositoryClient {
-  readonly repository: SelfRepository;
+  readonly repository: RepositoryTarget;
   readonly #credentials: RepositoryClientOptions["credentials"];
   readonly #fetch: FetchLike;
   readonly #base: string;
@@ -112,10 +112,13 @@ export class GitHubRepositoryClient implements RepositoryClient {
     };
   }
 
-  async getWorkflowStatus(ref: string): Promise<WorkflowStatus> {
+  async getWorkflowStatus(ref: string, workflow?: string): Promise<WorkflowStatus> {
     const safeRef = validateRef(ref);
     const query = new URLSearchParams({ branch: this.repository.branch, head_sha: safeRef, per_page: "10" });
-    const value = asRecord(await this.#request(`${this.#repoPath()}/actions/runs?${query}`));
+    const workflowPath = workflow === undefined
+      ? "actions/runs"
+      : `actions/workflows/${encodeURIComponent(validateWorkflowFile(workflow))}/runs`;
+    const value = asRecord(await this.#request(`${this.#repoPath()}/${workflowPath}?${query}`));
     const runs = Array.isArray(value.workflow_runs) ? value.workflow_runs : [];
     const first = runs.find((run) => isRecord(run) && run.head_sha === safeRef);
     if (!isRecord(first)) return { phase: "unknown" };
@@ -300,7 +303,7 @@ export class GitHubRepositoryClient implements RepositoryClient {
 
 const defaultFetch: FetchLike = async (input, init) => fetch(input, init);
 
-function validateRepository(value: SelfRepository): SelfRepository {
+function validateRepository(value: RepositoryTarget): RepositoryTarget {
   const owner = value.owner.trim();
   const name = value.name.trim();
   const branch = value.branch.trim();
@@ -308,6 +311,14 @@ function validateRepository(value: SelfRepository): SelfRepository {
     throw new ValidationError("Repository owner, name and branch are required.");
   }
   return { owner, name, branch };
+}
+
+function validateWorkflowFile(value: string): string {
+  const workflow = value.trim();
+  if (!/^[A-Za-z0-9._-]+\.ya?ml$/.test(workflow)) {
+    throw new ValidationError("Workflow must be a .yml or .yaml file name without path segments.");
+  }
+  return workflow;
 }
 
 function validatePath(path: string): string {

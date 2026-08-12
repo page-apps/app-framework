@@ -25,7 +25,7 @@ App code must consume `@repo-apps/credentials`, `@repo-apps/repo-client`, `@repo
 
 Normal writes are explicit, revision-aware updates to `data/records.json`. Never commit per keystroke. A stale SHA must become a visible conflict; silent overwrite is forbidden. The conflict choices are reload remote, save the local entry as a copy, or a clearly explicit overwrite.
 
-Device Flow and same-origin PAT sharing stay behind `@repo-apps/credentials`. App code may present verification instructions, polling state, explicit sharing consent and separate disconnect/remove-shared actions, but it must not implement OAuth endpoints, parse credential envelopes or read raw stored tokens. Shared reuse is never automatic: the user opts in again for this app, which independently verifies the self repository.
+Static browser authentication is PAT-only. Session storage is the default; persistent app-specific storage requires the standard disclosure and explicit acknowledgement. Do not add Device Flow, an OAuth token exchange, a public CORS proxy or same-origin shared storage to the app. App code must not parse credential envelopes or read raw stored tokens.
 
 Unsaved editor content may be cached in the app-owned IndexedDB draft store. It is temporary recovery state, never canonical data and never a queued promise to commit. Offline mode keeps the draft editable but blocks repository updates and deletes until connectivity returns.
 

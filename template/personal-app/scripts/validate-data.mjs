@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const inputs = ["data/records.json", "demo/records.json"];
+const manifestSource = await readFile(new URL("../repo-app.config.ts", import.meta.url), "utf8");
+const modeMatch = manifestSource.match(/\bmode\s*:\s*["'](self|fixed)["']/);
+if (!modeMatch) throw new Error("repo-app.config.ts must declare repository mode self or fixed.");
+const repositoryMode = modeMatch[1];
+const inputs = repositoryMode === "self"
+  ? ["data/records.json", "demo/records.json"]
+  : ["demo/records.json"];
 const allowedRecordKeys = new Set([
   "id",
   "title",
@@ -46,4 +52,4 @@ for (const input of inputs) {
   }
 }
 
-console.log(`Validated ${inputs.length} record collections.`);
+console.log(`Validated ${inputs.length} ${repositoryMode} mode record collection(s).`);

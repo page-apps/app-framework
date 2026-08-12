@@ -1,8 +1,11 @@
-export interface SelfRepository {
+export interface RepositoryTarget {
   readonly owner: string;
   readonly name: string;
   readonly branch: string;
 }
+
+/** @deprecated Use RepositoryTarget. Repository clients may target a manifest-fixed data repository. */
+export type SelfRepository = RepositoryTarget;
 
 /** Structural subset accepted from @repo-apps/credentials without exposing it to app code. */
 export interface RepositoryCredentialSource {
@@ -19,7 +22,7 @@ export interface FetchResponse {
 export type FetchLike = (input: string, init?: RequestInit) => Promise<FetchResponse>;
 
 export interface RepositoryClientOptions {
-  readonly repository: SelfRepository;
+  readonly repository: RepositoryTarget;
   readonly credentials: RepositoryCredentialSource;
   readonly fetch?: FetchLike;
   readonly apiBaseUrl?: string;
@@ -135,14 +138,14 @@ export interface BatchCommitResult {
 }
 
 export interface RepositoryClient {
-  readonly repository: SelfRepository;
+  readonly repository: RepositoryTarget;
   verifyAccess(): Promise<RepositoryAccess>;
   readFile(path: string): Promise<RepositoryFile>;
   list(path?: string): Promise<readonly RepositoryEntry[]>;
   createFile(input: WriteFileInput): Promise<CommitResult>;
   updateFile(input: UpdateFileInput): Promise<CommitResult>;
   getCommitStatus(ref: string): Promise<CommitStatus>;
-  getWorkflowStatus(ref: string): Promise<WorkflowStatus>;
+  getWorkflowStatus(ref: string, workflow?: string): Promise<WorkflowStatus>;
   getPagesDeploymentStatus(ref: string): Promise<PagesDeploymentStatus>;
   deleteFile(input: DeleteFileInput): Promise<DeleteResult>;
   batchCommit(input: BatchCommitInput): Promise<BatchCommitResult>;

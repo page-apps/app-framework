@@ -1,5 +1,4 @@
 import type { CredentialProvider } from "@repo-apps/credentials";
-import { DeviceFlowCredentialProvider, SharedPatCredentialProvider } from "@repo-apps/credentials";
 import { clearDraft, hasDraftContent, loadDraft, saveDraft, type QuickLogDraft } from "./drafts";
 import type { QuickLogCollection, QuickLogRecord } from "./schema";
 import { createRecordId, normaliseTags, parseCollection, quickLogRecordSchema } from "./schema";
@@ -16,8 +15,6 @@ interface RuntimeConfig extends RepositoryIdentity {
   dataPath: string;
   version: string;
   commitSha: string;
-  deviceClientId: string;
-  deviceScope: "public_repo" | "repo";
   fake: boolean;
 }
 
@@ -46,8 +43,6 @@ const isConflict = (error: unknown): boolean =>
 const friendlyError = (error: unknown): string => {
   if (!(error instanceof Error)) return "Something unexpected happened. Try again.";
   const code = "code" in error ? String(error.code) : "";
-  if (code === "device-flow-expired") return "The one-time device code expired. Start Device Flow again for a new code.";
-  if (code === "device-flow-denied") return "GitHub authorisation was cancelled. Start again when you’re ready.";
   if (code === "network") return "The connection was interrupted. Check your network and retry.";
   if (error.name === "AuthError" || /credential|token|401|authentication/i.test(error.message)) {
     return "GitHub did not accept this token. Check that it is current and copied in full.";
@@ -113,7 +108,6 @@ export function startQuickLog(): void {
   let repository: QuickLogRepository | null = null;
   let credentialProvider: CredentialProvider | null = null;
   let connected = false;
-  let credentialScope: "app" | "shared" | "device" = "app";
   let conflict: ConflictState | null = null;
   let pollGeneration = 0;
   let recoveredDraft: QuickLogDraft | null = null;
@@ -409,9 +403,8 @@ export function startQuickLog(): void {
     if (collection.records[0]) populateForm(collection.records[0]);
   };
 
-  const finishConnection = async (provider: CredentialProvider, scope: typeof credentialScope): Promise<void> => {
+  const finishConnection = async (provider: CredentialProvider): Promise<void> => {
     credentialProvider = provider;
-    credentialScope = scope;
     repository = createQuickLogRepository({
       identity,
       dataPath: config.dataPath,
@@ -446,7 +439,7 @@ export function startQuickLog(): void {
           if (!await provider.get()) continue;
           foundStoredCredential = true;
           setSync("Reconnecting", `Verifying the saved connection for ${config.owner}/${config.name}`);
-          await finishConnection(provider, "app");
+          await finishConnection(provider);
           return;
         } catch (error) {
           lastError = error;
@@ -463,43 +456,13 @@ export function startQuickLog(): void {
     }
   };
 
-  const sharedCandidate = (): SharedPatCredentialProvider => new SharedPatCredentialProvider({
-    appId: config.appId,
-    requestToken: async () => "",
-    repositoryHint: `${config.owner}/${config.name}`
-  });
-
-  const refreshSharedAvailability = async (): Promise<void> => {
-    try {
-      const candidate = sharedCandidate();
-      const available = await candidate.hasShared();
-      $<HTMLElement>("[data-shared-credential-card]").hidden = !available;
-      $<HTMLButtonElement>("[data-testid='remove-shared-credential']").hidden = !available && credentialScope !== "shared";
-      if (available) {
-        const hints = await candidate.listRepositoryHints();
-        $<HTMLElement>("[data-shared-repository-hints]").textContent = hints.length
-          ? `Repository hints: ${hints.join(", ")}`
-          : "Repository access will be checked before data is loaded.";
-      }
-    } catch {
-      $<HTMLElement>("[data-shared-credential-card]").hidden = true;
-      $<HTMLButtonElement>("[data-testid='remove-shared-credential']").hidden = true;
-    }
-  };
-
-  connectButton.addEventListener("click", async () => {
+  connectButton.addEventListener("click", () => {
     if (!connected) {
       connectError.hidden = true;
-      await refreshSharedAvailability();
       connectDialog.showModal();
       tokenInput.focus();
       return;
     }
-    await refreshSharedAvailability();
-    const disconnectSession = $<HTMLButtonElement>("[data-testid='disconnect-session']");
-    disconnectSession.textContent = credentialScope === "shared"
-      ? "Disconnect this app for this session"
-      : "Disconnect this app";
     disconnectDialog.showModal();
   });
 
@@ -508,8 +471,7 @@ export function startQuickLog(): void {
     connectError.hidden = true;
     const formData = new FormData(connectForm);
     const persistence = formData.get("persistence") === "persistent" ? "persistent" : "session";
-    const share = formData.get("shareCredential") === "on";
-    if ((persistence === "persistent" || share) && formData.get("acknowledge") !== "on") {
+    if (persistence === "persistent" && formData.get("acknowledge") !== "on") {
       connectError.textContent = "Acknowledge the browser-storage disclosure before choosing persistent storage.";
       connectError.hidden = false;
       return;
@@ -525,15 +487,9 @@ export function startQuickLog(): void {
     submit.textContent = "Verifying…";
     setSync("Connecting", `Checking access to ${config.owner}/${config.name}`);
     try {
-      const provider = share
-        ? new SharedPatCredentialProvider({
-            appId: config.appId,
-            requestToken: async () => token,
-            repositoryHint: `${config.owner}/${config.name}`
-          })
-        : createPatProvider(config.appId, persistence, async () => token);
+      const provider = createPatProvider(config.appId, persistence, async () => token);
       await provider.connect();
-      await finishConnection(provider, share ? "shared" : "app");
+      await finishConnection(provider);
     } catch (error) {
       await credentialProvider?.disconnect();
       credentialProvider = null;
@@ -547,93 +503,9 @@ export function startQuickLog(): void {
     }
   });
 
-  $<HTMLButtonElement>("[data-testid='use-shared-credential']").addEventListener("click", async () => {
-    connectError.hidden = true;
-    const provider = sharedCandidate();
-    const credential = await provider.useShared();
-    if (!credential) {
-      connectError.textContent = "The shared credential is no longer available. Connect with another method.";
-      connectError.hidden = false;
-      await refreshSharedAvailability();
-      return;
-    }
-    setSync("Connecting", `Verifying the shared credential against ${config.owner}/${config.name}`);
-    try {
-      await finishConnection(provider, "shared");
-    } catch (error) {
-      await provider.disconnect();
-      connectError.textContent = friendlyError(error);
-      connectError.hidden = false;
-      setSync("Connection failed", "The shared credential remains stored, but Quick Log did not use it");
-    }
-  });
-
-  const showAuthPanel = (method: "pat" | "device"): void => {
-    const patButton = $<HTMLButtonElement>("[data-testid='auth-method-pat']");
-    const deviceButton = $<HTMLButtonElement>("[data-testid='auth-method-device']");
-    patButton.setAttribute("aria-selected", String(method === "pat"));
-    deviceButton.setAttribute("aria-selected", String(method === "device"));
-    connectForm.hidden = method !== "pat";
-    $<HTMLElement>("[data-auth-panel='device']").hidden = method !== "device";
-  };
-
-  $<HTMLButtonElement>("[data-testid='auth-method-pat']").addEventListener("click", () => showAuthPanel("pat"));
-  $<HTMLButtonElement>("[data-testid='auth-method-device']").addEventListener("click", () => showAuthPanel("device"));
-
-  $<HTMLButtonElement>("[data-testid='device-start']").addEventListener("click", async (event) => {
-    const startButton = event.currentTarget as HTMLButtonElement;
-    const deviceError = $<HTMLElement>("[data-device-error]");
-    const deviceStatus = $<HTMLElement>("[data-testid='device-status']");
-    deviceError.hidden = true;
-    if (!config.fake && !config.deviceClientId) {
-      deviceError.textContent = "Device Flow needs a public GitHub OAuth app client ID in PUBLIC_GITHUB_DEVICE_CLIENT_ID.";
-      deviceError.hidden = false;
-      return;
-    }
-    let polls = 0;
-    const fakeFetch: typeof fetch = async () => {
-      polls += 1;
-      const body = polls === 1
-        ? { device_code: "quick-log-device", user_code: "LUNA-2026", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 1 }
-        : polls === 2
-          ? { error: "authorization_pending" }
-          : { access_token: "quick-log-fake-device-credential", token_type: "bearer", scope: "repo" };
-      return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-    };
-    const provider = new DeviceFlowCredentialProvider({
-      clientId: config.fake ? "quick-log-fake-client" : config.deviceClientId,
-      scopes: [config.deviceScope],
-      onVerification: (info) => {
-        const link = $<HTMLAnchorElement>("[data-testid='device-verification-link']");
-        link.href = info.verificationUriComplete ?? info.verificationUri;
-        $<HTMLElement>("[data-testid='device-user-code']").textContent = info.userCode;
-        $<HTMLElement>("[data-device-code-card]").hidden = false;
-        deviceStatus.textContent = "Waiting for approval on GitHub… This code expires automatically.";
-      },
-      ...(config.fake ? { fetch: fakeFetch, sleep: async () => {} } : {})
-    });
-    startButton.disabled = true;
-    startButton.textContent = "Waiting for GitHub…";
-    setSync("Connecting", "Device Flow is waiting for GitHub authorisation");
-    try {
-      await provider.connect();
-      deviceStatus.textContent = "Authorised. Verifying repository access…";
-      await finishConnection(provider, "device");
-    } catch (error) {
-      await provider.disconnect();
-      deviceError.textContent = friendlyError(error);
-      deviceError.hidden = false;
-      deviceStatus.textContent = "Device authorisation did not complete.";
-      setSync("Connection failed", "Restart Device Flow or choose a PAT");
-    } finally {
-      startButton.disabled = false;
-      startButton.textContent = "Start Device Flow";
-    }
-  });
-
   connectForm.addEventListener("change", () => {
     const data = new FormData(connectForm);
-    persistenceAck.hidden = data.get("persistence") !== "persistent" && data.get("shareCredential") !== "on";
+    persistenceAck.hidden = data.get("persistence") !== "persistent";
   });
 
   $<HTMLButtonElement>("[data-token-toggle]").addEventListener("click", (event) => {
@@ -645,7 +517,6 @@ export function startQuickLog(): void {
   });
 
   $<HTMLButtonElement>("[data-dialog-cancel]").addEventListener("click", () => connectDialog.close());
-  $<HTMLButtonElement>("[data-dialog-cancel-device]").addEventListener("click", () => connectDialog.close());
   $<HTMLButtonElement>("[data-testid='new-record-button']").addEventListener("click", resetForm);
   $<HTMLButtonElement>("[data-reset-button]").addEventListener("click", resetForm);
   recordForm.addEventListener("input", scheduleDraftSave);
@@ -659,15 +530,6 @@ export function startQuickLog(): void {
     returnToDemo();
   });
 
-  $<HTMLButtonElement>("[data-testid='remove-shared-credential']").addEventListener("click", async () => {
-    const shared = credentialScope === "shared" && credentialProvider instanceof SharedPatCredentialProvider
-      ? credentialProvider
-      : sharedCandidate();
-    await shared.disconnect({ shared: true });
-    disconnectDialog.close();
-    if (credentialScope === "shared") returnToDemo();
-    else setSync("Shared credential removed", "This app’s separate connection is unchanged");
-  });
   $<HTMLButtonElement>("[data-disconnect-cancel]").addEventListener("click", () => disconnectDialog.close());
 
   deleteButton.addEventListener("click", () => {

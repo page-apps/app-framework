@@ -55,7 +55,7 @@ export function decodeCredentialEnvelope(
   const credential = value.credential;
   if (
     !isRecord(credential) ||
-    (credential.kind !== "pat" && credential.kind !== "device-flow") ||
+    credential.kind !== "pat" ||
     typeof credential.token !== "string" ||
     !credential.token ||
     typeof credential.createdAt !== "string" ||

@@ -47,7 +47,7 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      - name: Validate canonical and demo data
+      - name: Validate public build inputs
         run: pnpm validate:data
 
       - uses: actions/configure-pages@v6

@@ -1,8 +1,8 @@
 # Repo Apps Harness
 
-Repo Apps Harness is an opinionated TypeScript and Astro foundation for small personal applications whose canonical data lives in an explicitly owned GitHub repository boundary. The included **Quick Log** reference app demonstrates the complete loop: demo, connect, read, edit, revision-aware commit, build and publish.
+Repo Apps Harness is an opinionated TypeScript and Astro foundation for small personal applications whose canonical data lives in an explicitly owned GitHub repository boundary. The included **Quick Log** reference app demonstrates the self-repository loop: demo, connect, read, edit, revision-aware commit, build and publish. The framework also supports a public Pages shell whose canonical data lives in one fixed private repository.
 
-The default rule is **one standalone Pages app, one repository, one canonical data boundary and one deployment**. The planned hub topology adds one parent Pages app at the repository root with child apps exactly under `apps/<app-id>/`; the parent composes and links those children without flattening their data or allowing routine parent updates to rewrite them. Shared packages provide credentials, repository access, runtime state, UI and testing helpers; they do not centrally store app data.
+The default rule is **one standalone Pages app, one explicit canonical data repository and one explicit deployment repository**. They may be the same (`self`) or the app may target one manifest-declared repository (`fixed`). For private personal data, the recommended topology is a public app repository plus a separate private data repository. The planned hub topology adds one parent Pages app at the repository root with child apps exactly under `apps/<app-id>/`; the parent composes and links those children without flattening their boundaries.
 
 ## Requirements
 
@@ -32,7 +32,8 @@ pnpm test:e2e
 
 ```text
 packages/                 shared framework packages
-template/personal-app/    copyable one-repository starter
+template/personal-app/    copyable public Pages/PWA starter
+template/private-data-repository/  copyable private data and Actions starter
 quick-log/                full reference application
 e2e/                      browser-level fake-repository test
 docs/                     product and architecture decisions
@@ -51,6 +52,15 @@ hub-repository/
 
 The root app owns root paths. Parent maintenance scripts and agents exclude `apps/**` unless a child is explicitly named.
 
+For a public shell with private data, use two repositories and two pipelines:
+
+```text
+public app push   → test → build PWA → deploy Pages
+private data push → validate → generate private indexes → data ready
+```
+
+The PWA reads private canonical and generated files at runtime with the user's PAT. Private data is never copied into the public Pages artifact. Live data-workflow status is optional and requires `Actions: read`; normal reads and saves require only `Contents: read and write`.
+
 GitHub only discovers Actions workflows from `.github/workflows` at the root of
 the repository it is running. This workspace therefore keeps repository-visible
 CI and Quick Log Pages deployment workflows in the root `.github/workflows/`
@@ -61,19 +71,19 @@ repository, as required by the standalone-app production model.
 
 The root Pages workflow is immediately visible in the repository's **Actions**
 tab. Enable **Settings → Pages → Source → GitHub Actions** before the first
-deployment. PAT connection requires no build secret. To enable Device Flow, add
-the public OAuth App client ID as the repository variable
-`REPO_APPS_GITHUB_CLIENT_ID`; the workflow exposes it to the static build as
-`PUBLIC_GITHUB_DEVICE_CLIENT_ID`. Never store a client secret in this project.
+deployment. PAT connection requires no build secret. Browser Device Flow is not
+supported: GitHub's login/token endpoints do not provide the CORS contract a
+static Pages app needs. Never store a PAT, OAuth client secret or other
+credential in source, Actions build configuration or Pages output.
 
 ## Create a personal app
 
-Copy `template/personal-app` into a new repository, replace the example collection and fixture, and update the manifest title and id. Keep canonical content under `data/`, demo-only content under `demo/`, and schemas under `schemas/`. The app workflow derives `owner/repository` from trusted `GITHUB_REPOSITORY` metadata; do not hard-code a repository identity or put a credential in source, build variables or Pages output.
+Copy `template/personal-app` into a new repository, replace the example collection and fixture, and update the manifest title and id. Keep demo-only content under `demo/` and schemas under `schemas/`. In `self` mode, canonical content remains under the declared `dataRoot` in the app repository. In `fixed` mode, declare one owner/repository in the manifest and keep canonical private content only in that repository; never import it into the Pages build.
 
-Application features receive a repository capability from the shared runtime. They must not parse tokens or call GitHub endpoints directly. Normal writes are confined to the configured self repository and include the expected revision so stale updates become visible conflicts.
+Application features receive a repository capability from the shared runtime. They must not parse tokens or call GitHub endpoints directly. Normal writes are confined to the configured data repository and include the expected revision so stale updates become visible conflicts. The runtime separately identifies the deployment repository so a fixed-data commit is not mistaken for a pending Pages publication.
 
-See [the PRD](docs/PRD.md) and [ADR-001](docs/ADR-001.md) for the complete contract, limitations and accepted personal-use security model.
+See [the PRD](docs/PRD.md), [ADR-001](docs/ADR-001.md) and [ADR-002](docs/ADR-002.md) for the complete contract, limitations and accepted personal-use security model.
 
 ## Security boundary
 
-This is a personal-use static architecture, not a strong browser security boundary. Browser-held credentials can be exposed by XSS, compromised dependencies or another app on the same origin. Use a fine-grained, expiring token limited to the minimum repositories and `Contents: read and write`; never use this design for sensitive multi-user applications.
+This is a personal-use static architecture, not a strong browser security boundary. Browser-held credentials and locally cached private data can be exposed by XSS, compromised dependencies, browser extensions or another app on the same origin. Session-only storage is the default. Use a fine-grained, expiring token limited to the displayed data repository and `Contents: read and write`; never use this design for sensitive multi-user applications.

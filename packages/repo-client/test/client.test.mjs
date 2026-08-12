@@ -24,7 +24,7 @@ function client(fetch) {
   });
 }
 
-test("all file operations are self-bound and decode unicode content", async () => {
+test("all file operations are target-bound and decode unicode content", async () => {
   let request;
   const api = client(async (url, init) => {
     request = { url, init };
@@ -76,6 +76,18 @@ test("workflow and Pages status are normalized", async () => {
   });
   assert.equal((await api.getWorkflowStatus("abc")).phase, "building");
   assert.equal((await api.getPagesDeploymentStatus("abc")).phase, "published");
+});
+
+test("a declared private-data workflow is queried without mixing in other runs", async () => {
+  let requestedUrl = "";
+  const api = client(async (url) => {
+    requestedUrl = url;
+    return response(200, { workflow_runs: [{ id: 8, head_sha: "data-sha", status: "completed", conclusion: "success" }] });
+  });
+  assert.equal((await api.getWorkflowStatus("data-sha", "validate-data.yml")).phase, "succeeded");
+  assert.match(requestedUrl, /\/actions\/workflows\/validate-data\.yml\/runs\?/);
+  assert.match(requestedUrl, /head_sha=data-sha/);
+  await assert.rejects(api.getWorkflowStatus("data-sha", "../other.yml"), /without path segments/);
 });
 
 test("delete sends the expected blob SHA and returns the commit", async () => {

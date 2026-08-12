@@ -1,6 +1,7 @@
 export const RUNTIME_STATUSES = [
   "demo", "disconnected", "connecting", "unauthorised-for-repository", "loading", "ready",
-  "dirty", "offline", "syncing", "committed", "building", "published", "conflicted",
+  "dirty", "offline", "syncing", "committed", "validating", "data-ready", "data-validation-failed",
+  "building", "published", "conflicted",
   "rate-limited", "token-expired", "failed",
 ] as const;
 
@@ -52,6 +53,9 @@ export type RuntimeAction<T = unknown> =
   | { readonly type: "COMMIT_SUCCESS"; readonly revision: string; readonly commitSha: string; readonly commitUrl?: string }
   | { readonly type: "DELETE_SUCCESS"; readonly commitSha: string; readonly commitUrl?: string }
   | { readonly type: "BATCH_COMMIT_SUCCESS"; readonly commitSha: string; readonly commitUrl?: string }
+  | { readonly type: "DATA_VALIDATION_START" }
+  | { readonly type: "DATA_VALIDATION_SUCCESS" }
+  | { readonly type: "DATA_VALIDATION_FAILURE"; readonly message?: string }
   | { readonly type: "BUILD_START" }
   | { readonly type: "PUBLISH_SUCCESS" }
   | { readonly type: "CONFLICT"; readonly local: T; readonly remote?: T; readonly expectedSha?: string }
@@ -89,6 +93,11 @@ export function runtimeReducer<T>(state: RuntimeState<T>, action: RuntimeAction<
     });
     case "BATCH_COMMIT_SUCCESS": return preserve(state, {
       status: "committed", commitSha: action.commitSha, commitUrl: action.commitUrl,
+    });
+    case "DATA_VALIDATION_START": return preserve(state, { status: "validating", message: undefined });
+    case "DATA_VALIDATION_SUCCESS": return preserve(state, { status: "data-ready", message: undefined });
+    case "DATA_VALIDATION_FAILURE": return preserve(state, {
+      status: "data-validation-failed", message: action.message,
     });
     case "BUILD_START": return preserve(state, { status: "building" });
     case "PUBLISH_SUCCESS": return preserve(state, { status: "published" });
