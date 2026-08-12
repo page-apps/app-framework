@@ -1,6 +1,7 @@
 export type UiRuntimeStatus =
   | "demo" | "disconnected" | "connecting" | "unauthorised-for-repository" | "loading"
-  | "ready" | "dirty" | "offline" | "syncing" | "committed" | "building" | "published"
+  | "ready" | "dirty" | "offline" | "syncing" | "committed" | "validating" | "data-ready"
+  | "data-validation-failed" | "building" | "published"
   | "conflicted" | "rate-limited" | "token-expired" | "failed";
 
 export interface StatusViewState {
@@ -19,6 +20,7 @@ const LABELS: Readonly<Record<UiRuntimeStatus, string>> = {
   demo: "Demo mode", disconnected: "Disconnected", connecting: "Connecting…",
   "unauthorised-for-repository": "Repository access required", loading: "Loading…", ready: "Ready",
   dirty: "Unsaved changes", offline: "Offline", syncing: "Committing…", committed: "Committed",
+  validating: "Validating data…", "data-ready": "Data ready", "data-validation-failed": "Data validation failed",
   building: "Building…", published: "Published", conflicted: "Conflict needs attention",
   "rate-limited": "Rate limited", "token-expired": "Credential expired", failed: "Something went wrong",
 };

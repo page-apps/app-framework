@@ -9,9 +9,9 @@ export default defineRepoApp({
     dataRoot: "data"
   },
   auth: {
-    methods: ["pat", "device-flow"],
-    persistence: "optional",
-    sharedCredential: true
+    methods: ["pat"],
+    persistence: "optional-persistent",
+    sharedCredential: false
   },
   demo: {
     fixture: "./demo/records.json"

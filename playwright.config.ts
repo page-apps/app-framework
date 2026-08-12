@@ -32,7 +32,6 @@ export default defineConfig({
       PUBLIC_REPO_BRANCH: "main",
       PUBLIC_APP_VERSION: "e2e",
       PUBLIC_COMMIT_SHA: "0000000000000000000000000000000000000000",
-      PUBLIC_GITHUB_DEVICE_CLIENT_ID: "quick-log-fake-client",
     },
   },
 });

@@ -1,5 +1,5 @@
 export const STANDARD_SECURITY_DISCLOSURE =
-  "This personal app stores a GitHub credential in your browser. A security flaw in this app, one of its dependencies, or another app on the same origin may expose that credential and every repository it can access. Use a fine-grained, expiring token limited to your personal app repositories and minimum permissions. Do not use this design for sensitive multi-user applications.";
+  "This personal app uses a GitHub token in your browser to access its configured data repository. A security flaw in this app, a dependency, a browser extension, or another app on the same origin may expose the token and locally cached private data. Use a fine-grained, expiring token limited to the displayed repository and minimum permissions. Session-only storage is recommended.";
 
 export const SECURITY_DISCLOSURE = STANDARD_SECURITY_DISCLOSURE;
 

@@ -1,4 +1,4 @@
-export type CredentialKind = "pat" | "device-flow";
+export type CredentialKind = "pat";
 
 /** A credential is intentionally consumed by framework clients, not app modules. */
 export interface Credential {
@@ -34,9 +34,6 @@ export class CredentialError extends Error {
     | "invalid-token"
     | "storage-unavailable"
     | "corrupt-storage"
-    | "device-flow-expired"
-    | "device-flow-denied"
-    | "device-flow-protocol"
     | "network"
     | "not-implemented";
 

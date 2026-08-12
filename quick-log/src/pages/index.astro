@@ -16,7 +16,6 @@ const resolved = resolveRuntimeConfig(manifest, {
   ...(buildVersion === undefined ? {} : { appVersion: buildVersion }),
   ...(buildCommitSha === undefined ? {} : { commitSha: buildCommitSha })
 });
-const requestedDeviceScope = import.meta.env.PUBLIC_GITHUB_DEVICE_SCOPE === "repo" ? "repo" : "public_repo";
 const runtimeConfig = {
   appId: resolved.appId,
   owner: resolved.repository.owner,
@@ -25,12 +24,9 @@ const runtimeConfig = {
   dataPath: import.meta.env.PUBLIC_REPO_DATA_PATH ?? `${resolved.repository.dataRoot}/records.json`,
   version: resolved.appVersion,
   commitSha: resolved.commitSha ?? "local",
-  deviceClientId: import.meta.env.PUBLIC_GITHUB_DEVICE_CLIENT_ID ?? "",
-  deviceScope: requestedDeviceScope,
   fake: import.meta.env.PUBLIC_REPO_APPS_FAKE === "1"
 };
 const repositoryLabel = `${runtimeConfig.owner}/${runtimeConfig.name}`;
-const deviceFlowAvailable = runtimeConfig.fake || Boolean(runtimeConfig.deviceClientId);
 const baseUrl = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 ---
 
@@ -41,7 +37,7 @@ const baseUrl = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_UR
     <meta name="viewport" content="width=device-width" />
     <meta name="description" content="Capture small moments in a JSON collection you own." />
     <meta name="theme-color" content="#f4f0e6" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com https://github.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none';" />
     <link rel="icon" type="image/svg+xml" href={`${baseUrl}favicon.svg`} />
     <title>{manifest.title} · Your notes, in your repository</title>
   </head>
@@ -205,16 +201,7 @@ const baseUrl = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_UR
       <div class="repository-detail"><span>Repository</span><strong>{repositoryLabel}</strong><small>Branch: {runtimeConfig.branch} · Data: {runtimeConfig.dataPath}</small></div>
       <div class="permission-callout"><strong>Required GitHub access</strong><span>Selected repository: <b>{repositoryLabel}</b></span><span>Repository permission: <b>Contents — read and write</b></span><span>Saving needs no workflow or administration permission. Private-repository publish tracking additionally needs Actions and Deployments read access.</span></div>
 
-      <div class="auth-methods" role="tablist" aria-label="Connection method">
-        <button type="button" role="tab" aria-selected="true" data-testid="auth-method-pat">Fine-grained PAT</button>
-        <button type="button" role="tab" aria-selected="false" data-testid="auth-method-device" hidden={!deviceFlowAvailable}>GitHub Device Flow</button>
-      </div>
-
-      <form data-connect-form data-auth-panel="pat">
-        <section class="shared-credential-card" data-shared-credential-card hidden>
-          <div><strong>A shared credential is available</strong><small>It was explicitly stored by another Repo App on this origin. Quick Log will still verify its own repository access.</small><span data-shared-repository-hints></span></div>
-          <button class="button button-quiet button-small" data-testid="use-shared-credential" type="button">Use shared credential</button>
-        </section>
+      <form data-connect-form>
         <fieldset data-persistence-options>
           <legend>Keep this token for</legend>
           <label class="choice-card"><input type="radio" name="persistence" value="session" checked /><span><strong>This tab session</strong><small>Cleared when this tab closes. Recommended on shared devices.</small></span></label>
@@ -232,28 +219,16 @@ const baseUrl = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_UR
           </ul>
         </div>
         <label class="acknowledgement" data-persistence-ack hidden><input type="checkbox" name="acknowledge" /><span>I understand the browser-storage risk and want persistent storage.</span></label>
-        <label class="acknowledgement"><input type="checkbox" name="shareCredential" data-testid="share-credential" /><span>Share this PAT with Repo Apps on this browser origin. This is explicit, reversible, and increases the impact if any same-origin app is compromised.</span></label>
         <div class="form-error" data-connect-error role="alert" hidden></div>
         <div class="dialog-actions"><button class="button button-quiet" type="button" data-dialog-cancel>Cancel</button><button class="button button-primary" data-testid="connect-submit" type="submit">Connect securely</button></div>
       </form>
 
-      <section class="device-flow-panel" data-testid="device-flow-panel" data-auth-panel="device" hidden>
-        <div class="device-intro"><strong>Connect without pasting a token</strong><p>GitHub will show the OAuth <code>{runtimeConfig.deviceScope}</code> scope requested by this app. OAuth repository scopes are broader than a repository-selected fine-grained PAT, so prefer a PAT when you want the narrowest access.</p></div>
-        <div class="device-code-card" data-device-code-card hidden>
-          <span>Enter this one-time code on GitHub</span>
-          <strong data-testid="device-user-code" aria-live="polite">—</strong>
-          <a class="button button-primary" data-testid="device-verification-link" target="_blank" rel="noreferrer">Open GitHub verification</a>
-        </div>
-        <p class="device-status" data-testid="device-status" role="status">Ready to begin secure device authorisation.</p>
-        <div class="form-error" data-device-error role="alert" hidden></div>
-        <div class="dialog-actions"><button class="button button-quiet" type="button" data-dialog-cancel-device>Cancel</button><button class="button button-primary" type="button" data-testid="device-start">Start Device Flow</button></div>
-      </section>
     </dialog>
 
     <dialog class="action-dialog" data-testid="disconnect-dialog" aria-labelledby="disconnect-title">
       <h2 id="disconnect-title">Connection options</h2>
-      <p>Choose whether to disconnect only Quick Log or remove the opt-in shared credential for every Repo App on this origin.</p>
-      <div class="dialog-actions stacked"><button class="button button-quiet" data-testid="disconnect-session" type="button">Disconnect this app for this session</button><button class="button button-danger" data-testid="remove-shared-credential" type="button" hidden>Remove shared credential for every app</button><button class="button button-quiet" data-disconnect-cancel type="button">Cancel</button></div>
+      <p>Disconnect Quick Log and return to its bundled demo. A persistent credential is removed from this browser.</p>
+      <div class="dialog-actions stacked"><button class="button button-danger" data-testid="disconnect-session" type="button">Disconnect this app</button><button class="button button-quiet" data-disconnect-cancel type="button">Cancel</button></div>
     </dialog>
 
     <dialog class="action-dialog" data-testid="delete-dialog" aria-labelledby="delete-title">

@@ -1,7 +1,7 @@
 # Repo Apps Harness — Product Requirements Document
 
-Status: Draft v0.3
-Date: 2026-08-11
+Status: Draft v0.4
+Date: 2026-08-12
 Audience: Coding agent and project maintainer
 
 ## 1. Summary
@@ -10,7 +10,7 @@ Repo Apps Harness is an opinionated framework and repository template for buildi
 
 The core invariant is:
 
-> Each app has one explicit owner, one canonical data boundary and one explicit deployment boundary.
+> Each app has one explicit owner, one canonical data repository and one explicit deployment repository. Those repositories may be the same, but neither boundary is implicit.
 
 The default topology is still one standalone app per repository. A second supported topology is a hub repository: the parent hub app lives at the repository root and child apps live exactly one level below it, normally under `apps/<app-id>/`. The hub may compose child-app navigation, summaries and links, but it does not erase the child apps' ownership or canonical data boundaries.
 
@@ -20,14 +20,14 @@ Each app forms a closed loop:
 
 1. GitHub Pages loads the app.
 2. Without credentials, the app runs in read-only demo mode.
-3. The user connects a fine-grained PAT or authenticates through GitHub Device Flow.
-4. The app verifies that the credential can access its own repository.
+3. The user connects a fine-grained PAT at runtime.
+4. The app verifies that the credential can access its configured data repository.
 5. The app reads canonical data from that repository.
 6. The user edits data through the app UI.
-7. The shared library commits the change back to the same repository.
-8. The commit triggers that repository's GitHub Actions workflow.
-9. Actions validates, builds and deploys a new version of that app.
-10. The app reports progress from committed to published.
+7. The shared library commits the change back to the configured data repository.
+8. In self-repository mode, the commit may trigger that repository's validation and Pages workflow.
+9. In fixed-data mode, the public shell remains deployed and reads the new data at runtime; it does not claim a Pages rebuild is pending.
+10. The app reports the lifecycle that applies to its configured topology.
 
 This is intentionally designed for personal, low-frequency applications. It is not a general-purpose backend, database or real-time collaboration platform.
 
@@ -45,8 +45,9 @@ The framework must provide:
 - A predictable one-level child-app folder boundary for hub repositories.
 - Parent/child composition without accidental edits to child applications.
 - Read-only demo mode without a credential.
-- PAT and GitHub Device Flow credential providers.
-- An optional unified PAT shared by personal apps on the same browser origin.
+- Fine-grained PAT providers with session-first storage.
+- A public-shell/private-data topology with one fixed, manifest-declared repository target.
+- Optional persistent storage only after an explicit browser-risk disclosure.
 - Clear documentation of the accepted personal-use security risks.
 - Instructions and constraints for coding agents.
 
@@ -149,13 +150,43 @@ The app must derive its repository identity during GitHub Actions build from `GI
 
 The derived repository identity is public configuration, not a secret.
 
-Cross-repository reads or writes are not part of the standalone MVP. In hub mode, child access is still opt-in: the parent must explicitly declare the child capability and the paths or operations it needs. A hub must never infer broad write access from a child being present under `apps/`.
+Self mode remains supported for apps whose data is suitable for the deployment repository.
+
+### 4.5 Public shell with a fixed data repository
+
+An app may instead declare one fixed canonical data repository that differs from the repository that builds and publishes the app:
+
+```text
+page-apps/bookmark       public source and Pages deployment
+page-apps/bookmark-data  private canonical bookmark data
+```
+
+The data repository owner, name, branch and data root are public manifest configuration. They must not be selected through a URL, arbitrary runtime input or mutable browser storage. The Actions-derived repository identity remains the deployment boundary; the manifest-declared identity becomes the repository-client boundary.
+
+For private personal data this is the recommended topology. A fine-grained PAT should select only the private data repository with `Contents: read and write`. Separating the repositories also prevents that PAT from modifying the code that will receive it on a later visit.
+
+A fixed-data Pages build includes schemas and demo fixtures, never canonical private data. The public repository's Actions pipeline tests and deploys the PWA. The private data repository owns a separate Actions pipeline that can validate canonical data and generate private indexes or summaries. Committing data does not trigger or require deployment of the public shell, but it can still trigger the private data pipeline.
+
+### 4.6 Dual-pipeline lifecycle
+
+The recommended fixed-data topology uses both repositories' pipelines:
+
+| Boundary | Trigger | Pipeline responsibility | Result |
+| --- | --- | --- | --- |
+| Public app repository | Source or dependency change | Type-check, test, build and deploy PWA | New Pages application version |
+| Private data repository | PAT-authenticated data commit | Validate schemas and generate private derived files | Ready or failed data revision |
+
+The PWA reads canonical and generated private files at runtime through the authenticated repository client. A private workflow must never upload its data to the public Pages artifact or send it in a public repository-dispatch payload.
+
+Data workflow tracking is optional. When enabled, the manifest identifies the workflow file and the app may request `Actions: read` in addition to `Contents: read and write`. When disabled or unavailable, the app reports a successful commit without claiming validation succeeded.
+
+Other unscoped cross-repository access remains unsupported. In hub mode, child access is still opt-in: the parent must explicitly declare the child capability and the paths or operations it needs. A hub must never infer broad write access from a child being present under `apps/`.
 
 ## 5. Non-goals
 
 The initial framework will not support:
 
-- Unscoped cross-app writes or multiple apps silently sharing one canonical data boundary.
+- Unscoped or runtime-selected cross-repository writes.
 - A central service storing all app data or settings.
 - Anonymous public writes.
 - Untrusted multi-tenant applications.
@@ -177,38 +208,32 @@ The initial framework will not support:
 - GitHub Pages for hosting.
 - GitHub REST API and Git Data APIs for repository access.
 - GitHub Actions for validation, build and deployment.
-- Fine-grained PAT as the baseline credential method.
-- GitHub Device Flow as an optional credential method.
-- `localStorage` as the default persistent shared-token storage.
-- Memory or `sessionStorage` for non-persistent credentials.
-- Cookies as an optional credential adapter, with no claim of stronger same-origin isolation.
+- Fine-grained PAT as the only credential method for a purely static browser app.
+- `sessionStorage` as the default credential storage.
+- Memory-only credentials where reload persistence is unnecessary.
+- Explicit opt-in `localStorage` persistence for trusted personal devices.
 - IndexedDB for offline drafts, caches and pending mutations where required.
 - Zod or an equivalent shared schema library for runtime validation.
 - A shared UI library for connection, sync, conflict and deployment states.
 
-## 7. Authentication and shared credential model
+## 7. Authentication and credential storage model
 
-### 7.1 One PAT, multiple app repositories
+### 7.1 One PAT, one minimum repository capability
 
-The framework may reuse one user-controlled fine-grained PAT across many personal apps.
+The recommended token selects exactly the configured data repository for one app.
 
 ```text
-Shared PAT
-├── quick-log repository
-├── reading-tracker repository
-├── knowledge-notebook repository
-└── developer-inbox repository
+Bookmark PAT
+└── bookmark-data repository (Contents: read and write)
 ```
 
-The PAT must have explicit GitHub access to every app repository that uses it. When a new app repository is created, the user may need to update the PAT's selected repository access in GitHub.
-
-Even when a PAT can access many repositories, each app must use it only against its configured self repository unless additional repository capabilities are explicitly declared.
+Even when a PAT can access more repositories, the framework gives the app a client for only its manifest-declared data repository. Application code receives that repository capability rather than the raw token.
 
 ### 7.2 Same-origin requirement
 
-Shared browser credential storage is available only to apps on the same browser origin.
+Browser storage is scoped to an origin, not a Pages path. This is a risk boundary, not a feature to rely on by default.
 
-These project sites can share `localStorage`:
+These project sites can read the same `localStorage`:
 
 ```text
 https://page-apps.github.io/quick-log/
@@ -218,7 +243,7 @@ https://page-apps.github.io/knowledge-notebook/
 
 Their common origin is `https://page-apps.github.io`.
 
-Apps on different custom domains or different GitHub Pages owners cannot share browser storage without a separate credential broker, which is outside the MVP.
+Generated apps therefore default to session-only, app-specific credentials and disable shared persistent credentials. A separate custom domain gives an app a separate origin and is recommended when persistent storage is necessary. A credential broker remains outside the static MVP.
 
 ### 7.3 Credential providers
 
@@ -234,10 +259,10 @@ interface CredentialProvider {
 
 Initial providers:
 
-- Memory/session PAT provider.
-- Persistent app-specific PAT provider.
-- Persistent same-origin shared PAT provider.
-- GitHub Device Flow provider.
+- Memory PAT provider.
+- Session PAT provider (default).
+- Persistent app-specific PAT provider (explicit opt-in).
+- Same-origin shared PAT provider for backwards compatibility (disabled in generated apps by default).
 
 The shared PAT should use a stable, versioned storage key owned by the framework, such as `repo-apps:credentials:v1`. The storage format must allow future migration without requiring generated apps to understand token details.
 
@@ -266,27 +291,21 @@ Demo mode must never contain or depend on an embedded privileged token.
 
 The recommended PAT permission is access to only the required app repositories with `Contents: read and write`. Workflow or administration permissions must not be requested unless explicitly required and documented.
 
-### 8.3 Connect with Device Flow
+### 8.3 Browser authentication boundary
 
-1. User selects `Connect with GitHub`.
-2. The credential provider starts GitHub Device Flow.
-3. The app displays the verification URL and user code.
-4. The app polls until authorisation succeeds, expires or is denied.
-5. The resulting user token is passed to the same repository client used by PAT authentication.
-6. The framework verifies access to the app's self repository.
+Device Flow is not exposed by generated GitHub Pages apps. GitHub's device-code and token endpoints are intended for headless clients and do not provide the browser CORS contract required by the static application.
 
-Device Flow remains behind the credential-provider interface because browser and GitHub endpoint constraints may change.
+A future conventional GitHub sign-in must use a separately reviewed backend or serverless component with a GitHub App or appropriate OAuth flow. A public client ID does not make a client secret safe to embed, and a public CORS proxy is forbidden.
 
 ### 8.4 Edit, commit and publish
 
-1. App reads a record from its own repository and retains the current blob SHA or equivalent revision.
+1. App reads a record from its configured data repository and retains the current blob SHA or equivalent revision.
 2. User edits the record.
 3. App validates the new state locally.
-4. App commits through the shared repository library to the same repository.
+4. App commits through the shared repository library to its configured data repository.
 5. The app displays `Committed` and the commit identifier.
-6. The commit triggers that repository's Actions workflow.
-7. The app observes workflow and Pages deployment status where practical.
-8. The app transitions through `Building` and `Published`, or displays an actionable failure.
+6. In self mode, the commit may trigger the deployment repository's Actions workflow and the app may transition through `Building` and `Published`.
+7. In fixed mode with a declared data workflow, the app may transition through `Committed`, `Validating` and `Data ready`; it never treats that workflow as a Pages publication. Without workflow tracking, the app remains safely `Committed`.
 
 ### 8.5 Conflict
 
@@ -325,7 +344,7 @@ The exact manifest API may evolve, but the contract is fixed:
 
 ### 9.1 Application manifest
 
-Each app declares a self-repository manifest:
+Each app declares one repository target. A self-contained app uses:
 
 ```ts
 export default defineRepoApp({
@@ -337,9 +356,9 @@ export default defineRepoApp({
     dataRoot: "data",
   },
   auth: {
-    methods: ["pat", "device-flow"],
-    persistence: "optional",
-    sharedCredential: true,
+    methods: ["pat"],
+    persistence: "session",
+    sharedCredential: false,
   },
   demo: {
     fixture: "./demo/records.json",
@@ -351,19 +370,48 @@ export default defineRepoApp({
 });
 ```
 
-At build time, the framework generates a public runtime configuration containing the resolved owner, repository, branch and app version.
+A public shell backed by a separate private repository uses:
+
+```ts
+export default defineRepoApp({
+  id: "bookmark",
+  title: "Bookmark Garden",
+  repository: {
+    mode: "fixed",
+    owner: "page-apps",
+    name: "bookmark-data",
+    branch: "main",
+    dataRoot: "data",
+  },
+  dataPipeline: {
+    mode: "actions",
+    workflow: "validate-data.yml",
+    derivedRoot: "generated",
+  },
+  auth: {
+    methods: ["pat"],
+    persistence: "session",
+    sharedCredential: false,
+  },
+  demo: { fixture: "./demo/bookmarks.json" },
+  writes: { defaultStrategy: "direct", conflictStrategy: "prompt" },
+});
+```
+
+At build time, the framework generates public, token-free runtime configuration containing both the Actions-derived deployment repository and the resolved canonical data repository. Deployment branch metadata may override the data branch only in `self` mode. An optional data-pipeline configuration identifies one workflow in the data repository and a safe derived-data root.
 
 ### 9.2 Repository client
 
 The shared library must provide typed operations for:
 
-- Read file from the self repository.
+- Read file from the configured data repository.
 - List directory or tree.
 - Create file.
 - Update file with expected revision.
 - Delete file with expected revision.
 - Commit a batch through Git Data APIs when required.
 - Query commit, workflow and deployment status.
+- Query one declared data workflow by commit SHA without confusing it with the public Pages deployment.
 - Normalise authentication, permission, validation, conflict and rate-limit errors.
 
 Generated app code must not call GitHub endpoints directly unless an exception is explicitly documented.
@@ -383,6 +431,9 @@ dirty
 offline
 syncing
 committed
+validating
+data-ready
+data-validation-failed
 building
 published
 conflicted
@@ -409,6 +460,15 @@ Every standalone app repository owns its workflow. A hub repository owns a paren
 5. Deploy the generated artifact to that repository's GitHub Pages site.
 
 Applications may add app-specific generation steps before the Astro build.
+
+A fixed private data repository should have its own workflow that:
+
+1. Runs on pushes that touch canonical data or schemas.
+2. Validates every canonical collection.
+3. Generates deterministic private indexes or summaries when configured.
+4. Writes generated files only under the declared derived-data root.
+5. Uses concurrency and path filters to avoid recursive generation loops.
+6. Never publishes canonical or derived private data to GitHub Pages or another public artifact.
 
 For hub repositories:
 
@@ -450,16 +510,18 @@ The documentation and connection screen must disclose:
 - PATs should be fine-grained, expiring and limited to the minimum app repositories and permissions.
 - Credentials must never be committed, logged, placed in URLs, embedded in build output or sent to analytics.
 - Demo mode contains no privileged credential.
+- Service workers must not cache authenticated GitHub API requests or responses.
+- IndexedDB or other offline storage may contain private records and must have a clear-local-data action.
 
 The standard disclosure must not be removable by generated apps:
 
-> This personal app stores a GitHub credential in your browser. A security flaw in this app, one of its dependencies, or another app on the same origin may expose that credential and every repository it can access. Use a fine-grained, expiring token limited to your personal app repositories and minimum permissions. Do not use this design for sensitive multi-user applications.
+> This personal app uses a GitHub token in your browser to access its configured data repository. A security flaw in this app, a dependency, a browser extension, or another app on the same origin may expose the token and locally cached private data. Use a fine-grained, expiring token limited to the displayed repository and minimum permissions. Session-only storage is recommended.
 
 The framework should still apply dependency pinning, output escaping, content sanitisation, no unnecessary third-party scripts and a restrictive CSP meta policy where practical. These safeguards reduce risk but do not create strong same-origin isolation.
 
 ## 11. Shared-token behaviour
 
-Shared credential reuse must be:
+Legacy shared credential reuse must be:
 
 - Explicit and opt-in.
 - Limited to apps on the same origin.
@@ -475,6 +537,8 @@ The UI must distinguish:
 
 Apps must also support isolated app-specific credentials when the user does not want to share one token.
 
+Generated apps set `sharedCredential: false`. Shared storage is a backwards-compatible personal-use option, not the default framework recommendation.
+
 ## 12. MVP scope
 
 The first MVP remains a standalone Quick Log repository created from the framework template. It must complete the full self-repository loop. Hub mode is the next topology milestone and must not weaken the standalone contract.
@@ -484,7 +548,7 @@ MVP includes:
 - Separate framework and Quick Log repositories.
 - Astro shell consumed from the framework.
 - Bundled demo mode.
-- Build-time self-repository configuration.
+- Build-time self or fixed data-repository configuration.
 - Fine-grained PAT connection.
 - Session-only and persistent PAT choices.
 - PAT access validation for the Quick Log repository.
@@ -498,7 +562,7 @@ MVP includes:
 - Unit tests for repository client and credential providers.
 - One Playwright happy-path test using a fake repository adapter.
 
-MVP does not require Device Flow, shared same-origin PAT reuse, delete, batch commits or offline mutation replay to be complete. Their interfaces and documented behaviour are part of the design; implementations follow after the PAT vertical slice works.
+MVP does not require shared same-origin PAT reuse, delete, batch commits or offline mutation replay to be complete. Browser Device Flow is explicitly outside the static framework.
 
 ## 13. Acceptance criteria
 
@@ -530,16 +594,28 @@ Hub-mode acceptance criteria are separate:
 21. Child canonical data is not silently merged into the parent's canonical data boundary.
 22. Parent and child build/deployment status are distinguishable.
 
+Fixed-data acceptance criteria are separate:
+
+23. Runtime configuration distinguishes the deployment repository from the canonical data repository.
+24. The data repository target is fixed in the manifest and cannot be overridden through runtime input.
+25. The Pages artifact contains demo fixtures and schemas but no canonical private data.
+26. A data-repository PAT does not require access to the public application repository.
+27. A fixed-data commit is reported as committed, validating or data-ready without claiming a Pages deployment is pending.
+28. Authenticated GitHub API responses are excluded from service-worker caches.
+29. A private data push can trigger a separately owned validation/generation workflow.
+30. The app distinguishes private data validation from public app deployment.
+31. Saving works with Contents read/write alone; live data-workflow tracking clearly identifies Actions read as optional.
+
 ## 14. Follow-up milestones
 
-1. Device Flow credential provider.
-2. Same-origin shared PAT vault.
-3. A second standalone app repository to verify credential reuse.
-4. IndexedDB drafts and mutation queue.
-5. Delete, move and batch commit support.
-6. Developer Inbox reference app.
-7. Markdown knowledge app with Pagefind.
-8. App scaffolding command and generated `AGENTS.md`.
-9. Hub repository manifest and one-level child-app layout.
-10. Hub catalogue/composition view with explicit child capabilities.
-11. Scoped parent/child workflows and safe update scripts.
+1. Fixed private data-repository runtime support and Bookmark Garden reference app.
+2. Clear-local-data lifecycle for private IndexedDB caches.
+3. IndexedDB drafts and mutation queue.
+4. Delete, move and batch commit support.
+5. Developer Inbox reference app.
+6. Markdown knowledge app with Pagefind.
+7. App scaffolding command and generated `AGENTS.md`.
+8. Hub repository manifest and one-level child-app layout.
+9. Hub catalogue/composition view with explicit child capabilities.
+10. Scoped parent/child workflows and safe update scripts.
+11. Optional backend-auth architecture for apps that outgrow PAT entry.

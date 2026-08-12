@@ -5,13 +5,14 @@ import { createRepoAppShell } from "../dist/index.js";
 const manifest = {
   id: "quick-log", title: "Quick Log",
   repository: { mode: "self", branch: "main", dataRoot: "data" },
-  auth: { methods: ["pat"], persistence: "optional", sharedCredential: false },
+  auth: { methods: ["pat"], persistence: "session", sharedCredential: false },
   demo: { fixture: "./demo/records.json" },
   writes: { defaultStrategy: "direct", conflictStrategy: "prompt" },
 };
 const runtime = {
   appId: "quick-log", title: "Quick Log", appVersion: "test",
-  repository: { owner: "owner", name: "quick-log", branch: "main", dataRoot: "data" },
+  repository: { mode: "self", owner: "owner", name: "quick-log", branch: "main", dataRoot: "data" },
+  deploymentRepository: { owner: "owner", name: "quick-log" },
 };
 
 function fakeClient(overrides = {}) {
@@ -49,7 +50,41 @@ test("refuses a repository client pointed at another repository", () => {
     manifest, runtime,
     client: fakeClient({ repository: { owner: "owner", name: "other", branch: "main" } }),
     demoLoader: () => [],
-  }), /self repository/);
+  }), /data repository/);
+});
+
+test("fixed private data commits track their declared workflow instead of Pages", async () => {
+  const calls = [];
+  const fixedManifest = {
+    ...manifest,
+    id: "bookmark",
+    repository: { mode: "fixed", owner: "owner", name: "bookmark-data", branch: "main", dataRoot: "data" },
+    dataPipeline: { mode: "actions", workflow: "validate-data.yml", derivedRoot: "generated" },
+  };
+  const fixedRuntime = {
+    appId: "bookmark", title: "Bookmark", appVersion: "test",
+    repository: { mode: "fixed", owner: "owner", name: "bookmark-data", branch: "main", dataRoot: "data" },
+    deploymentRepository: { owner: "owner", name: "bookmark" },
+    dataPipeline: fixedManifest.dataPipeline,
+  };
+  const shell = createRepoAppShell({
+    manifest: fixedManifest,
+    runtime: fixedRuntime,
+    client: fakeClient({
+      repository: { owner: "owner", name: "bookmark-data", branch: "main" },
+      getWorkflowStatus: async (sha, workflow) => {
+        calls.push({ sha, workflow });
+        return { phase: "succeeded" };
+      },
+      getPagesDeploymentStatus: async () => { throw new Error("Pages must not be queried for private data"); },
+    }),
+    demoLoader: () => [],
+  });
+  await shell.load();
+  await shell.saveFile({ data: [{ url: "https://example.com" }], message: "Add bookmark" });
+  await shell.refreshCommitStatus();
+  assert.equal(shell.state.status, "data-ready");
+  assert.deepEqual(calls, [{ sha: "commit", workflow: "validate-data.yml" }]);
 });
 
 test("stale SHA becomes a conflict with local and fresh remote data", async () => {
