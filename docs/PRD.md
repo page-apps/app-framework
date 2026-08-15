@@ -190,7 +190,7 @@ A public Astro site may combine public blog, documentation or demo routes with a
 
 After hydration, the workspace verifies the PAT against the fixed repository and fetches private data through the shared client. Without access it renders a connection or demo state. This is an authenticated data view, not server-side route protection: hidden links, client redirects and `robots.txt` are not authorization boundaries.
 
-Component source may be installed from a separate private code-only repository during the public build, but its browser output is public and a component change still requires a Pages rebuild. The public build must not receive access to the private data repository merely to obtain components. Runtime module federation is unnecessary for private data and is excluded from the supported pattern. See [the pattern catalogue](PATTERNS.md) for the complete boundary.
+Component source may be installed from a separate private code-only repository during the public build, but its browser output is public and a component change still requires a Pages rebuild. The public build must not receive access to the private data repository merely to obtain components. Directly adding PAT handling to Module Federation is not part of the baseline. A Service Worker-backed virtual plugin origin is an experimental spike candidate for trusted first-party remotes; it must pass the documented whole-remote asset-loading and lifecycle criteria before entering the framework contract. See [the pattern catalogue](PATTERNS.md) for the complete boundary.
 
 ### 4.8 Local overlay and eventual remote state
 
@@ -640,9 +640,10 @@ Fixed-data acceptance criteria are separate:
 3. IndexedDB drafts, optimistic rendered overlays and a conflict-safe mutation queue.
 4. Delete, move and batch commit support.
 5. Developer Inbox reference app.
-6. Markdown knowledge app with Pagefind.
-7. App scaffolding command and generated `AGENTS.md`.
-8. Hub repository manifest and one-level child-app layout.
-9. Hub catalogue/composition view with explicit child capabilities.
-10. Scoped parent/child workflows and safe update scripts.
-11. Optional backend-auth architecture for apps that outgrow PAT entry.
+6. Service Worker virtual plugin-origin spike for trusted first-party Module Federation remotes.
+7. Markdown knowledge app with Pagefind.
+8. App scaffolding command and generated `AGENTS.md`.
+9. Hub repository manifest and one-level child-app layout.
+10. Hub catalogue/composition view with explicit child capabilities.
+11. Scoped parent/child workflows and safe update scripts.
+12. Optional backend-auth architecture for apps that outgrow PAT entry.
