@@ -26,6 +26,8 @@ importers:
 
   packages/credentials: {}
 
+  packages/plugin-runtime: {}
+
   packages/repo-client: {}
 
   packages/runtime: {}
