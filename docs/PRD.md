@@ -1,7 +1,7 @@
 # Repo Apps Harness — Product Requirements Document
 
-Status: Draft v0.4
-Date: 2026-08-12
+Status: Draft v0.5
+Date: 2026-08-15
 Audience: Coding agent and project maintainer
 
 ## 1. Summary
@@ -47,6 +47,8 @@ The framework must provide:
 - Read-only demo mode without a credential.
 - Fine-grained PAT providers with session-first storage.
 - A public-shell/private-data topology with one fixed, manifest-declared repository target.
+- Public sites that mix unauthenticated content with authenticated workspace views without claiming that static routes are private.
+- Immediate local rendering and revision-aware reconciliation while repository, data-workflow and deployment states converge.
 - Optional persistent storage only after an explicit browser-risk disclosure.
 - Clear documentation of the accepted personal-use security risks.
 - Instructions and constraints for coding agents.
@@ -182,6 +184,22 @@ Data workflow tracking is optional. When enabled, the manifest identifies the wo
 
 Other unscoped cross-repository access remains unsupported. In hub mode, child access is still opt-in: the parent must explicitly declare the child capability and the paths or operations it needs. A hub must never infer broad write access from a child being present under `apps/`.
 
+### 4.7 Authenticated views in a public shell
+
+A public Astro site may combine public blog, documentation or demo routes with an authenticated workspace backed by its fixed private data repository. The workspace route and all compiled components remain part of the public Pages artifact. They must contain no private records, secrets, private indexes or sensitive route metadata.
+
+After hydration, the workspace verifies the PAT against the fixed repository and fetches private data through the shared client. Without access it renders a connection or demo state. This is an authenticated data view, not server-side route protection: hidden links, client redirects and `robots.txt` are not authorization boundaries.
+
+Component source may be installed from a separate private code-only repository during the public build, but its browser output is public and a component change still requires a Pages rebuild. The public build must not receive access to the private data repository merely to obtain components. Runtime module federation is unnecessary for private data and is excluded from the supported pattern. See [the pattern catalogue](PATTERNS.md) for the complete boundary.
+
+### 4.8 Local overlay and eventual remote state
+
+The rendered state is the latest validated canonical snapshot plus a local draft or pending-mutation overlay. Edits update the UI immediately. The app then commits with the last-read revision and changes the durability label only after GitHub acknowledges the write.
+
+Actions and Pages are never on the critical path for rendering an accepted edit. Fixed-data apps continue from `Committed` to optional private validation without rebuilding the public shell. Self-mode apps may keep rendering the committed overlay while Pages builds. On reload, an authenticated app reconciles local pending metadata with a fresh API read before replaying anything.
+
+Small draft metadata may use app-namespaced `localStorage`; private caches and mutation queues should use IndexedDB. Both require clear-local-data behavior and conflict-safe reconciliation.
+
 ## 5. Non-goals
 
 The initial framework will not support:
@@ -306,6 +324,8 @@ A future conventional GitHub sign-in must use a separately reviewed backend or s
 5. The app displays `Committed` and the commit identifier.
 6. In self mode, the commit may trigger the deployment repository's Actions workflow and the app may transition through `Building` and `Published`.
 7. In fixed mode with a declared data workflow, the app may transition through `Committed`, `Validating` and `Data ready`; it never treats that workflow as a Pages publication. Without workflow tracking, the app remains safely `Committed`.
+
+The rendered value changes immediately after local validation and remains visible while steps 4–7 run. `Committed` is never shown until the repository API accepts the write. A refresh must reconcile the pending overlay with the current remote revision instead of blindly replaying it.
 
 ### 8.5 Conflict
 
@@ -512,6 +532,8 @@ The documentation and connection screen must disclose:
 - Demo mode contains no privileged credential.
 - Service workers must not cache authenticated GitHub API requests or responses.
 - IndexedDB or other offline storage may contain private records and must have a clear-local-data action.
+- Static workspace routes and their compiled components are public even when their data is PAT-gated.
+- The architecture depends on GitHub REST browser CORS and an effective CSP that permits connections to `https://api.github.com`.
 
 The standard disclosure must not be removable by generated apps:
 
@@ -605,12 +627,17 @@ Fixed-data acceptance criteria are separate:
 29. A private data push can trigger a separately owned validation/generation workflow.
 30. The app distinguishes private data validation from public app deployment.
 31. Saving works with Contents read/write alone; live data-workflow tracking clearly identifies Actions read as optional.
+32. An authenticated workspace route contains no private build-time data and remains harmless when loaded without a PAT.
+33. The app renders a valid local edit while sync, validation or publication continues, without labelling it committed early.
+34. Reload reconciliation reads the current remote revision before replaying a queued mutation.
+35. A private data-only commit does not require a public Pages rebuild.
+36. Platform failures such as blocked API CORS or CSP connections fail closed for private data and preserve recoverable local drafts.
 
 ## 14. Follow-up milestones
 
 1. Fixed private data-repository runtime support and Bookmark Garden reference app.
 2. Clear-local-data lifecycle for private IndexedDB caches.
-3. IndexedDB drafts and mutation queue.
+3. IndexedDB drafts, optimistic rendered overlays and a conflict-safe mutation queue.
 4. Delete, move and batch commit support.
 5. Developer Inbox reference app.
 6. Markdown knowledge app with Pagefind.
