@@ -32,6 +32,7 @@ pnpm test:e2e
 
 ```text
 packages/                 shared framework packages
+  plugin-runtime/         private artifact transport and revisioned state capability
 template/personal-app/    copyable public Pages/PWA starter
 template/private-data-repository/  copyable private data and Actions starter
 quick-log/                full reference application
@@ -82,7 +83,7 @@ Copy `template/personal-app` into a new repository, replace the example collecti
 
 Application features receive a repository capability from the shared runtime. They must not parse tokens or call GitHub endpoints directly. Normal writes are confined to the configured data repository and include the expected revision so stale updates become visible conflicts. The runtime separately identifies the deployment repository so a fixed-data commit is not mistaken for a pending Pages publication.
 
-See [the pattern catalogue](docs/PATTERNS.md), [the PRD](docs/PRD.md), [ADR-001](docs/ADR-001.md) and [ADR-002](docs/ADR-002.md) for the complete contract, limitations and accepted personal-use security model. The pattern catalogue also covers public Astro sites with authenticated workspace routes, the local overlay used to hide Actions/Pages latency without misreporting a draft as committed, and an experimental Service Worker virtual-origin spike for trusted first-party Module Federation remotes.
+See [the pattern catalogue](docs/PATTERNS.md), [the PRD](docs/PRD.md), [ADR-001](docs/ADR-001.md) and [ADR-002](docs/ADR-002.md) for the complete contract, limitations and accepted personal-use security model. The pattern catalogue also covers public Astro sites with authenticated workspace routes, the local overlay used to hide Actions/Pages latency without misreporting a draft as committed, and an experimental Service Worker virtual-origin plus fixed private-state capability for trusted first-party Module Federation remotes.
 
 ## Security boundary
 

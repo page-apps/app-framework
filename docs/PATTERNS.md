@@ -151,6 +151,14 @@ Cache keys should include the immutable plugin commit SHA. A successful fetch ca
 
 This is not a browser security sandbox. The loaded remote still executes as same-origin JavaScript and can read the DOM, same-origin resources and any data the host exposes to it. Treat this as a trusted first-party plugin model. Third-party or untrusted plugins require a separate origin, iframe/sandbox design and a different threat model.
 
+### Private plugin state capability
+
+Keep immutable plugin artifacts and mutable canonical state in separate fixed repositories. The host may reuse an explicitly approved same-origin shared PAT, but it must independently verify code-repository read access and data-repository read/write access. It then binds `createPrivatePluginStateCapability()` to one repository client and one path and passes only domain methods to the remote.
+
+The capability validates repository text on read, validates and deterministically formats proposed state on write, requires the last-read blob SHA and returns the new content SHA. A stale SHA remains a visible conflict. The plugin cannot choose a repository or path and never receives the PAT, credential provider, repository client or arbitrary fetch. The Service Worker continues to handle only immutable artifact URLs; mutable state requests go directly through the repository client and are never stored in the plugin artifact cache.
+
+Same-origin credential storage removes repeated prompts on one browser profile, not across devices. Cross-device state sync comes from the fixed Git repository. Each device still needs its own approved credential vault unless a future backend credential broker is introduced.
+
 ### Service Worker and Pages lifecycle constraints
 
 The host must register the worker before attempting to load a private remote and wait until it is active and controlling the page. The first visit may need a harmless public shell, a `controllerchange` wait, or a reload before `/__plugins/` requests can work. A remote must never be requested through the virtual prefix before control is established.
