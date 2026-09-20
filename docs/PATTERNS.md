@@ -1,4 +1,4 @@
-# Repo Apps Patterns and Platform Boundaries
+# App Framework Patterns and Platform Boundaries
 
 Status: Working architecture guide
 
@@ -23,12 +23,63 @@ Every pattern keeps these rules:
 | --- | --- | --- | --- | --- |
 | Self-repository app | Public or private app source, canonical data and Pages deployment in one repository | The built page may lag; authenticated API reads can be current | Commit → validate/build → publish | Small apps whose data can share the app repository |
 | Public shell, fixed private data | Public Astro/Pages repository plus one private data repository | Runtime API reads are current | Commit → optional private validation; no public rebuild | Personal data that must not enter the public artifact |
+| Agent-produced public reader | Private editorial/agent repository plus a public reader repository | Anonymous readers see the latest deployed public commit | Generate → validate/review → promote public content → build/deploy | AI Daily Briefs, digests, blogs and generated knowledge sites |
 | Authenticated workspace in a public shell | Public marketing/blog/demo routes plus public workspace code that reads one private repository after connection | Runtime API reads are current | Same as fixed private data | A public site with owner-only tools or views |
 | Hub with bounded children | Parent at the repository root and children at `apps/<app-id>/` | Defined independently per parent and child | Parent and child lifecycles remain separate | Navigation and summaries across several repo apps |
 
 The authenticated-workspace pattern is a specialization of the fixed-private-data pattern, not a new authentication system.
 
 For the proposed mixed blog/personal app, use the third pattern: keep the Astro routes and components in the public build, keep canonical records and generated indexes in the fixed private repository, and let the authenticated workspace fetch them at runtime. This gives record changes immediate runtime visibility without adding module federation or rebuilding the blog.
+
+The agent-produced public reader pattern is different from the fixed-private-data pattern. It is the correct choice when the generated content is intended for anyone to read without a PAT. The private repository is an editorial and production boundary; it is not a runtime data source for the anonymous Pages site. A publication step must copy the public-safe release into the public reader repository before the Pages workflow can deploy it.
+
+## Agent-produced public reader
+
+Use this pattern when a local machine, scheduled worker or coding-agent host generates content on a recurring basis and the result is a public, read-only site. The reader should not know where or how the content was generated.
+
+```text
+private editorial repository                 public reader repository
+├── prompts/                                 ├── content/ or public data
+├── drafts/                                  ├── src/ reader application
+├── research/                                └── .github/workflows/deploy.yml
+└── review/provenance                             │
+        │ generate, validate and review            │ build and deploy
+        └──────── promote public-safe release ─────┘
+                                                        │
+                                                        ▼
+                                              anonymous GitHub Pages reader
+```
+
+The private repository may be pushed by the agent host as often as needed, but it must not be used as a direct source for anonymous browser requests. The public reader repository is the publication boundary and contains only content that is safe to disclose publicly. Its Pages artifact is public by definition.
+
+The normal lifecycle is:
+
+1. The agent creates an immutable, date- or release-keyed draft in the private editorial repository. Drafts retain prompts, source links, generator identity and validation results needed for audit and repeatability.
+2. Deterministic checks run before publication. Depending on the domain, an independent reviewer agent, a human approval or both can be required. A failed or uncertain draft stays private.
+3. A publisher promotes exactly the selected public-safe files to the public reader repository in an idempotent commit or pull request. It must not send private draft bodies, credentials or full research context in a repository-dispatch payload or log.
+4. The public repository validates the published content, builds the reader and deploys Pages. Only after this succeeds is the release visible to anonymous readers.
+
+Keep these states separate:
+
+- `Draft`, `Validating`, `Needs review` and `Rejected` belong to the private editorial pipeline.
+- `Promoted` means the public repository accepted the release commit.
+- `Building` and `Published` belong to the public Pages pipeline.
+
+The public reader needs no PAT and must not fetch the private repository at runtime. If readers must access content that remains private, use the fixed-private-data or authenticated-workspace pattern instead. If all generated content should be visible, the promotion target—not the editorial repository—must be public.
+
+For AI Daily, the local Codex/Copilot runner creates bundles in the private editorial repository, the automatic or human review gate decides whether a bundle is publishable, and the selected daily and news Markdown files are promoted to the public `ai-news-daily` repository. The public site then builds only stable content; private drafts remain available only to the editorial workflow and review UI.
+
+### Publication boundary rules
+
+- Give the generator write access to the private editorial repository and give the publisher only the narrow public-repository capability it needs.
+- Prefer a protected publication branch or pull request when the content has meaningful reputational, legal or safety risk.
+- Pin the public release to a date, pipeline or content revision and make reruns idempotent. If the public target already contains different content for the same release key, stop with a conflict.
+- Validate the public repository independently. Private validation is not evidence that the public artifact contains no private fields.
+- Keep raw credentials, private prompts, unpublished drafts, hidden source notes and agent state outside the public repository and Pages artifact.
+- Treat public content, HTML, JavaScript, source maps, generated indexes and URLs as public even when the source generator is private.
+- Never claim that a private editorial commit is published. The release is visible only after the public commit and Pages deployment complete.
+
+Recurring producers use [the scheduler contract](SCHEDULER.md). The scheduler remains outside the Pages client and records one durable private execution per deterministic occurrence. It establishes lease-backed or durable-workflow ownership, promotes an approved release through an expected-head public commit, reconciles the release key and digest on retries, and marks `Published` only after the Pages deployment matches the promoted commit. Local cron, GitHub Actions and [Temporal](TEMPORAL.md) are adapters over this contract; none defines a different lifecycle.
 
 ## Authenticated workspace in a public Astro site
 

@@ -12,6 +12,10 @@ This repository is one complete Pages application. Preserve the invariant: **one
 - `dist/`, generated indexes, caches and Pages artifacts are derived. Never treat them as canonical or commit them unless a documented app-specific process requires it.
 - `.github/workflows/deploy.yml` validates source data and regenerates the site. The app repository owns this workflow.
 
+If this app is an agent-produced public reader, the public repository is the publication boundary. Private editorial drafts, prompts, source notes and agent state belong in a separate private repository and must never be fetched by the anonymous reader or copied into the Pages artifact. Promotion must select an explicit release set, validate it independently and stop on a conflicting release key. A private editorial commit is not a public publication.
+
+Recurring producers must follow `@repo-apps/scheduler-contract`: one durable private execution per deterministic occurrence, one state authority, lease-backed or durable-workflow ownership, bounded classified retries, an approved private release candidate, a sanitized public release manifest, expected-head promotion and deployment reconciliation against the promoted commit. Scheduler commands, run records and credentials do not belong in `repo-app.config.ts` or the Pages build.
+
 In `self` mode, owner and repository are derived from trusted GitHub Actions metadata at build time. In `fixed` mode, the manifest declares exactly one owner/repository; this public, token-free target must not be overridden by a URL, arbitrary user input or browser storage. Do not introduce additional repository capabilities without an explicit architecture decision and user-visible permission explanation.
 
 ## Safe extension points
