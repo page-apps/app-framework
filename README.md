@@ -1,8 +1,8 @@
 # App Framework
 
-App Framework is an opinionated TypeScript and Astro foundation for small personal applications whose canonical data lives in an explicitly owned GitHub repository boundary. The included **Quick Log** reference app demonstrates the self-repository loop: demo, connect, read, edit, revision-aware commit, build and publish. The framework also supports a public Pages shell whose canonical data lives in one fixed private repository.
+App Framework is an opinionated TypeScript and Astro foundation for small personal applications whose canonical data lives in an explicitly owned GitHub repository boundary. The included **Quick Log** reference app demonstrates the self-repository loop: demo, connect, read, edit, revision-aware commit, build and publish. The framework also supports a public Pages shell whose canonical data lives in one fixed private repository, and an agent-produced public reader whose private editorial pipeline promotes public-safe content into a public Pages repository.
 
-The default rule is **one standalone Pages app, one explicit canonical data repository and one explicit deployment repository**. They may be the same (`self`) or the app may target one manifest-declared repository (`fixed`). For private personal data, the recommended topology is a public app repository plus a separate private data repository. The planned hub topology adds one parent Pages app at the repository root with child apps exactly under `apps/<app-id>/`; the parent composes and links those children without flattening their boundaries.
+The default rule is **one standalone Pages app, one explicit canonical data repository and one explicit deployment repository**. They may be the same (`self`) or the app may target one manifest-declared repository (`fixed`). For private personal data, the recommended topology is a public app repository plus a separate private data repository. For generated public readers, the private editorial repository is canonical for drafts and provenance while the public reader repository is the explicit publication/deployment boundary for derived releases. The planned hub topology adds one parent Pages app at the repository root with child apps exactly under `apps/<app-id>/`; the parent composes and links those children without flattening their boundaries.
 
 ## Requirements
 
@@ -62,6 +62,16 @@ private data push → validate → generate private indexes → data ready
 
 The PWA reads private canonical and generated files at runtime with the user's PAT. Private data is never copied into the public Pages artifact. Live data-workflow status is optional and requires `Actions: read`; normal reads and saves require only `Contents: read and write`.
 
+For an agent-produced public reader, use a private editorial repository and a public reader repository:
+
+```text
+agent host → generate/validate/review private drafts
+           → promote public-safe content to public reader repo
+           → validate/build/deploy GitHub Pages
+```
+
+The public reader is anonymous and token-free. It must not fetch the private editorial repository at runtime. A private editorial commit is not a publication; readers see the release only after the public repository commit and Pages deployment succeed. See [the pattern catalogue](docs/PATTERNS.md) and [ADR-003](docs/ADR-003.md).
+
 GitHub only discovers Actions workflows from `.github/workflows` at the root of
 the repository it is running. This workspace therefore keeps repository-visible
 CI and Quick Log Pages deployment workflows in the root `.github/workflows/`
@@ -83,7 +93,7 @@ Copy `template/personal-app` into a new repository, replace the example collecti
 
 Application features receive a repository capability from the shared runtime. They must not parse tokens or call GitHub endpoints directly. Normal writes are confined to the configured data repository and include the expected revision so stale updates become visible conflicts. The runtime separately identifies the deployment repository so a fixed-data commit is not mistaken for a pending Pages publication.
 
-See [the pattern catalogue](docs/PATTERNS.md), [the PRD](docs/PRD.md), [ADR-001](docs/ADR-001.md) and [ADR-002](docs/ADR-002.md) for the complete contract, limitations and accepted personal-use security model. The pattern catalogue also covers public Astro sites with authenticated workspace routes, the local overlay used to hide Actions/Pages latency without misreporting a draft as committed, and an experimental Service Worker virtual-origin plus fixed private-state capability for trusted first-party Module Federation remotes.
+See [the pattern catalogue](docs/PATTERNS.md), [the PRD](docs/PRD.md), [ADR-001](docs/ADR-001.md), [ADR-002](docs/ADR-002.md) and [ADR-003](docs/ADR-003.md) for the complete contract, limitations and accepted personal-use security model. The pattern catalogue also covers public Astro sites with authenticated workspace routes, the local overlay used to hide Actions/Pages latency without misreporting a draft as committed, and an experimental Service Worker virtual-origin plus fixed private-state capability for trusted first-party Module Federation remotes.
 
 ## Security boundary
 

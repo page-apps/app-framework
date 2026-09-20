@@ -29,4 +29,14 @@ dataPipeline: {
 
 The public repository's workflow deploys the PWA. The private repository's workflow validates canonical data and generates private derived files. The PWA reads those files at runtime with a session-first, fine-grained PAT; private data never enters the Pages artifact.
 
+For an agent-produced public reader, use a different boundary: keep prompts, research, drafts and review history in a private editorial repository, then promote only the selected public-safe content into this public app repository. The Pages app must render the promoted content statically and must not fetch the private editorial repository at runtime or require a PAT. A private draft is not published until the public repository accepts the release and its Pages workflow completes.
+
+Recommended release flow:
+
+```text
+agent host → private drafts → validate/review → public content commit → Pages deploy
+```
+
+Make release keys (for example, date plus pipeline id) idempotent, validate the public content independently, and stop on a conflicting existing release. Never copy private prompts, credentials, hidden research notes or unpublished draft text into `content/`, `data/`, generated assets, logs or URLs.
+
 Read `AGENTS.md` before asking a coding agent to modify this app.

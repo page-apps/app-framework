@@ -12,3 +12,5 @@ The public app reads both `data/` and `generated/` at runtime through `api.githu
 Create a fine-grained PAT for only this repository with `Contents: read and write`. Add `Actions: read` only if the PWA displays live validation status.
 
 Replace the example record contract, validator and generator together before use.
+
+This template is for authenticated private data, not for an anonymous public content reader. If an agent generates content that everyone should see, use the agent-produced public-reader pattern: keep drafts here or in another private editorial repository, then promote public-safe releases into the public reader repository before Pages deployment.

@@ -8,15 +8,19 @@ Audience: Coding agent and project maintainer
 
 App Framework is an opinionated framework and repository template for building small personal applications hosted on GitHub Pages. It supports both standalone applications and a hub application that composes a small set of child applications.
 
-The core invariant is:
+The core invariant for interactive apps is:
 
 > Each app has one explicit owner, one canonical data repository and one explicit deployment repository. Those repositories may be the same, but neither boundary is implicit.
+
+An agent-produced public reader uses the same explicit boundaries with a derived release: its private editorial repository is canonical for drafts and provenance, while its public reader repository is the publication and deployment boundary. The public repository is not treated as the private editorial source of truth.
 
 The default topology is still one standalone app per repository. A second supported topology is a hub repository: the parent hub app lives at the repository root and child apps live exactly one level below it, normally under `apps/<app-id>/`. The hub may compose child-app navigation, summaries and links, but it does not erase the child apps' ownership or canonical data boundaries.
 
 The shared framework is consumed as packages or a repository template; it does not centrally store application data.
 
-Each app forms a closed loop:
+The framework also defines an agent-produced public-reader topology for generated content. In that topology, a private editorial repository stores drafts and provenance, while a separate public reader repository stores only the released public content and deploys the anonymous Pages site. The private repository is never a runtime source for the public reader.
+
+Each interactive app forms a closed loop:
 
 1. GitHub Pages loads the app.
 2. Without credentials, the app runs in read-only demo mode.
@@ -28,6 +32,13 @@ Each app forms a closed loop:
 8. In self-repository mode, the commit may trigger that repository's validation and Pages workflow.
 9. In fixed-data mode, the public shell remains deployed and reads the new data at runtime; it does not claim a Pages rebuild is pending.
 10. The app reports the lifecycle that applies to its configured topology.
+
+An agent-produced public reader has a separate producer loop:
+
+1. A local or hosted agent creates and validates a versioned draft in the private editorial repository.
+2. A review or publication gate promotes an explicit public-safe release set into the public reader repository.
+3. The public repository independently validates, builds and deploys the Pages reader.
+4. The browser reads only the public deployment and requires no PAT.
 
 This is intentionally designed for personal, low-frequency applications. It is not a general-purpose backend, database or real-time collaboration platform.
 
@@ -52,6 +63,7 @@ The framework must provide:
 - Optional persistent storage only after an explicit browser-risk disclosure.
 - Clear documentation of the accepted personal-use security risks.
 - Instructions and constraints for coding agents.
+- A private-editorial/public-reader release boundary for recurring agent-generated content.
 
 ## 3. Target user
 
@@ -199,6 +211,26 @@ The rendered state is the latest validated canonical snapshot plus a local draft
 Actions and Pages are never on the critical path for rendering an accepted edit. Fixed-data apps continue from `Committed` to optional private validation without rebuilding the public shell. Self-mode apps may keep rendering the committed overlay while Pages builds. On reload, an authenticated app reconciles local pending metadata with a fresh API read before replaying anything.
 
 Small draft metadata may use app-namespaced `localStorage`; private caches and mutation queues should use IndexedDB. Both require clear-local-data behavior and conflict-safe reconciliation.
+
+### 4.9 Agent-produced public reader
+
+An app whose content is generated outside the browser may use a private editorial repository plus a public reader repository:
+
+```text
+private editorial repository       public reader repository
+drafts, research, prompts         public content and reader source
+agent state, review history       public Pages deployment
+          │
+          └── validated promotion ──► public commit → build → deploy
+```
+
+This topology is for content intended to be publicly readable without a credential. The private repository may be local or hosted and may receive recurring pushes from a coding agent. It is not the public reader's runtime data repository. The public repository is the publication boundary and must contain only public-safe content.
+
+The private producer must create versioned drafts, preserve provenance and run deterministic checks before promotion. A human, independent reviewer agent or domain-specific gate may be required before promotion. The publisher must promote an explicit release set in an idempotent commit or pull request and must stop on a conflicting public target. It must not put private draft bodies, credentials or hidden research context into public commits, dispatch payloads, logs or build artifacts.
+
+The public repository workflow independently validates the released content, builds the reader and deploys Pages. The browser requires no PAT, authenticated runtime API or private-repository configuration. Private editorial states (`Draft`, `Validating`, `Needs review`, `Rejected`) are distinct from public release and deployment states (`Promoted`, `Building`, `Published`).
+
+If the user needs the browser to read data that remains private, this topology is incorrect; use section 4.5 or 4.7 instead. Making the viewer public means making the promoted content, its rendered artifact and any shipped indexes public.
 
 ## 5. Non-goals
 
@@ -490,6 +522,14 @@ A fixed private data repository should have its own workflow that:
 5. Uses concurrency and path filters to avoid recursive generation loops.
 6. Never publishes canonical or derived private data to GitHub Pages or another public artifact.
 
+An agent-produced public reader should additionally have:
+
+1. A private producer/editorial process that validates and versions drafts before promotion.
+2. A narrowly scoped publication step that copies only the selected public-safe release into the public reader repository.
+3. An independent public-repository validation step before the Pages build.
+4. Idempotency and conflict checks for release keys so retries cannot silently replace a different public edition.
+5. No runtime PAT requirement or private-repository fetch in the public reader.
+
 For hub repositories:
 
 - root validation and build steps operate on the parent by default;
@@ -511,6 +551,7 @@ Every standalone app repository includes `AGENTS.md` describing:
 - Which core auth, token and sync files must not be modified casually.
 - The rule that generated code uses the shared library rather than direct GitHub calls.
 - The commit, Actions and Pages release loop.
+- When content is agent-produced, the private editorial/public publication boundary and the rule that private drafts never enter the public artifact.
 
 Every hub repository also includes a root scope document stating that `apps/<app-id>/` is a child boundary. Child repositories or child folders include their own scope document. An agent working on the parent must leave child folders untouched unless the user explicitly requests a child change.
 
@@ -632,6 +673,15 @@ Fixed-data acceptance criteria are separate:
 34. Reload reconciliation reads the current remote revision before replaying a queued mutation.
 35. A private data-only commit does not require a public Pages rebuild.
 36. Platform failures such as blocked API CORS or CSP connections fail closed for private data and preserve recoverable local drafts.
+
+Public-reader acceptance criteria are separate:
+
+37. The generator can write recurring drafts to a private editorial repository without making that repository a runtime dependency of the public reader.
+38. Promotion selects an explicit release set, validates it and stops on a conflicting public release key.
+39. The public repository independently validates, builds and deploys only public-safe content.
+40. An anonymous reader can view the published content without a PAT or GitHub API request to the private repository.
+41. Private drafts, prompts, credentials, hidden research context and agent state are absent from the public repository and Pages artifact.
+42. Private editorial states are not reported as public publication or Pages deployment success.
 
 ## 14. Follow-up milestones
 
