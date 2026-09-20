@@ -79,6 +79,8 @@ For AI Daily, the local Codex/Copilot runner creates bundles in the private edit
 - Treat public content, HTML, JavaScript, source maps, generated indexes and URLs as public even when the source generator is private.
 - Never claim that a private editorial commit is published. The release is visible only after the public commit and Pages deployment complete.
 
+Recurring producers use [the scheduler contract](SCHEDULER.md). The scheduler remains outside the Pages client and records one durable private execution per deterministic occurrence. It establishes lease-backed or durable-workflow ownership, promotes an approved release through an expected-head public commit, reconciles the release key and digest on retries, and marks `Published` only after the Pages deployment matches the promoted commit. Local cron, GitHub Actions and [Temporal](TEMPORAL.md) are adapters over this contract; none defines a different lifecycle.
+
 ## Authenticated workspace in a public Astro site
 
 An Astro site may mix public pages such as a blog, documentation or a demo with workspace routes that become useful after PAT connection:

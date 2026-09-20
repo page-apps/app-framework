@@ -232,6 +232,16 @@ The public repository workflow independently validates the released content, bui
 
 If the user needs the browser to read data that remains private, this topology is incorrect; use section 4.5 or 4.7 instead. Making the viewer public means making the promoted content, its rendered artifact and any shipped indexes public.
 
+### 4.10 Scheduler contract
+
+Recurring agent-produced readers use a host-neutral scheduler contract. Scheduler commands, private repository paths, run records and credentials remain outside the public app manifest and Pages artifact.
+
+The contract distinguishes stable job, occurrence, logical execution, retry attempt, public release key, release digest, promotion commit and deployment identities. It defines a private durable state machine from `queued` through `published`, lease-backed or durable-workflow execution authority, bounded retry classification, private release candidates, safe public release manifests and recovery after partial cross-repository failure.
+
+Local cron, GitHub Actions, Temporal and future workers are adapters. They own clock triggering, direct process spawning, secret injection and one durable lifecycle authority, but must preserve the same lifecycle and promotion handshake. Applications own generation, domain validation, editorial policy and model selection.
+
+The expected public branch head plus release-key/digest reconciliation is the final publication correctness boundary. A matching existing release is idempotent success; a different digest for the same release key is a conflict. A run becomes `published` only after the observed Pages deployment matches the promoted public commit.
+
 ## 5. Non-goals
 
 The initial framework will not support:
@@ -529,6 +539,11 @@ An agent-produced public reader should additionally have:
 3. An independent public-repository validation step before the Pages build.
 4. Idempotency and conflict checks for release keys so retries cannot silently replace a different public edition.
 5. No runtime PAT requirement or private-repository fetch in the public reader.
+6. A scheduler job and one durable private lifecycle authority conforming to `@repo-apps/scheduler-contract` for recurring generation.
+7. Lease-backed or durable-workflow execution authority plus an expected-head public commit for concurrent-run safety.
+8. A private release candidate and sanitized public release manifest with deterministic SHA-256 digest.
+9. Retry classification that never automatically retries rejected, invalid, permission-denied or conflicting releases.
+10. Deployment reconciliation against the exact promoted public commit before reporting `Published`.
 
 For hub repositories:
 
@@ -682,6 +697,12 @@ Public-reader acceptance criteria are separate:
 40. An anonymous reader can view the published content without a PAT or GitHub API request to the private repository.
 41. Private drafts, prompts, credentials, hidden research context and agent state are absent from the public repository and Pages artifact.
 42. Private editorial states are not reported as public publication or Pages deployment success.
+43. A recurring pipeline has stable job, occurrence and execution identities; retries preserve the logical execution and increment its attempt.
+44. Lease-backed or durable-workflow ownership reduces overlap while the expected public branch head remains the final concurrency check.
+45. The same release key and digest reconcile as idempotent success; a different digest is a visible conflict.
+46. Public release metadata contains no private source paths, source revisions, prompts, draft bodies, credentials or run errors.
+47. A run is reported as published only when the observed Pages deployment matches its promoted public commit.
+48. Local cron, GitHub Actions and Temporal adapters preserve the same scheduler lifecycle and retry semantics.
 
 ## 14. Follow-up milestones
 

@@ -32,6 +32,8 @@ importers:
 
   packages/runtime: {}
 
+  packages/scheduler-contract: {}
+
   packages/ui: {}
 
   quick-log:

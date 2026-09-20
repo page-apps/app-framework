@@ -33,6 +33,7 @@ pnpm test:e2e
 ```text
 packages/                 shared framework packages
   plugin-runtime/         private artifact transport and revisioned state capability
+  scheduler-contract/     host-neutral scheduled reader jobs, runs and releases
 template/personal-app/    copyable public Pages/PWA starter
 template/private-data-repository/  copyable private data and Actions starter
 quick-log/                full reference application
@@ -72,6 +73,8 @@ agent host → generate/validate/review private drafts
 
 The public reader is anonymous and token-free. It must not fetch the private editorial repository at runtime. A private editorial commit is not a publication; readers see the release only after the public repository commit and Pages deployment succeed. See [the pattern catalogue](docs/PATTERNS.md) and [ADR-003](docs/ADR-003.md).
 
+Recurring generation uses the host-side [`@repo-apps/scheduler-contract`](packages/scheduler-contract/README.md). It standardizes occurrences, durable lifecycle state, single-owner execution, retries, release digests, idempotent promotion and deployment reconciliation while leaving cron, Temporal, GitHub Actions, agent commands and editorial policy to adapters and applications. See [the scheduler contract](docs/SCHEDULER.md), [Temporal adapter profile](docs/TEMPORAL.md) and [ADR-004](docs/ADR-004.md).
+
 GitHub only discovers Actions workflows from `.github/workflows` at the root of
 the repository it is running. This workspace therefore keeps repository-visible
 CI and Quick Log Pages deployment workflows in the root `.github/workflows/`
@@ -93,7 +96,7 @@ Copy `template/personal-app` into a new repository, replace the example collecti
 
 Application features receive a repository capability from the shared runtime. They must not parse tokens or call GitHub endpoints directly. Normal writes are confined to the configured data repository and include the expected revision so stale updates become visible conflicts. The runtime separately identifies the deployment repository so a fixed-data commit is not mistaken for a pending Pages publication.
 
-See [the pattern catalogue](docs/PATTERNS.md), [the PRD](docs/PRD.md), [ADR-001](docs/ADR-001.md), [ADR-002](docs/ADR-002.md) and [ADR-003](docs/ADR-003.md) for the complete contract, limitations and accepted personal-use security model. The pattern catalogue also covers public Astro sites with authenticated workspace routes, the local overlay used to hide Actions/Pages latency without misreporting a draft as committed, and an experimental Service Worker virtual-origin plus fixed private-state capability for trusted first-party Module Federation remotes.
+See [the pattern catalogue](docs/PATTERNS.md), [the PRD](docs/PRD.md), [ADR-001](docs/ADR-001.md), [ADR-002](docs/ADR-002.md), [ADR-003](docs/ADR-003.md) and [ADR-004](docs/ADR-004.md) for the complete contract, limitations and accepted personal-use security model. The pattern catalogue also covers public Astro sites with authenticated workspace routes, the local overlay used to hide Actions/Pages latency without misreporting a draft as committed, and an experimental Service Worker virtual-origin plus fixed private-state capability for trusted first-party Module Federation remotes.
 
 ## Security boundary
 

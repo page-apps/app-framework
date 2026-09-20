@@ -39,4 +39,6 @@ agent host → private drafts → validate/review → public content commit → 
 
 Make release keys (for example, date plus pipeline id) idempotent, validate the public content independently, and stop on a conflicting existing release. Never copy private prompts, credentials, hidden research notes or unpublished draft text into `content/`, `data/`, generated assets, logs or URLs.
 
+For recurring generation, keep the scheduler job and lifecycle state in the private editorial/scheduler boundary and use `@repo-apps/scheduler-contract`. The host may be local cron, GitHub Actions, Temporal or another worker, but it must use one durable state authority, single-owner execution, bounded retry, release-digest and deployment-reconciliation semantics. See the framework's `docs/SCHEDULER.md`.
+
 Read `AGENTS.md` before asking a coding agent to modify this app.
