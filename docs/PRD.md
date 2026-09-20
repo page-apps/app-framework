@@ -1,4 +1,4 @@
-# Repo Apps Harness — Product Requirements Document
+# App Framework — Product Requirements Document
 
 Status: Draft v0.5
 Date: 2026-08-15
@@ -6,7 +6,7 @@ Audience: Coding agent and project maintainer
 
 ## 1. Summary
 
-Repo Apps Harness is an opinionated framework and repository template for building small personal applications hosted on GitHub Pages. It supports both standalone applications and a hub application that composes a small set of child applications.
+App Framework is an opinionated framework and repository template for building small personal applications hosted on GitHub Pages. It supports both standalone applications and a hub application that composes a small set of child applications.
 
 The core invariant is:
 
@@ -71,7 +71,7 @@ The initial user is a technical individual who:
 The framework has its own repository and contains only reusable assets:
 
 ```text
-repo-apps-framework/
+app-framework/
 ├── packages/
 │   ├── astro-shell/
 │   ├── repo-client/
@@ -111,7 +111,7 @@ A second app such as Reading Tracker or Knowledge Notebook may be another reposi
 A hub repository contains one parent app at the repository root and child apps in one predictable directory level:
 
 ```text
-personal-hub/
+page-apps.github.io/
 ├── src/                         # parent hub UI and composition logic
 ├── data/                        # parent-owned hub data only
 ├── repo-app.config.ts           # parent manifest

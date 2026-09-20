@@ -1,6 +1,6 @@
-# Repo Apps Harness
+# App Framework
 
-Repo Apps Harness is an opinionated TypeScript and Astro foundation for small personal applications whose canonical data lives in an explicitly owned GitHub repository boundary. The included **Quick Log** reference app demonstrates the self-repository loop: demo, connect, read, edit, revision-aware commit, build and publish. The framework also supports a public Pages shell whose canonical data lives in one fixed private repository.
+App Framework is an opinionated TypeScript and Astro foundation for small personal applications whose canonical data lives in an explicitly owned GitHub repository boundary. The included **Quick Log** reference app demonstrates the self-repository loop: demo, connect, read, edit, revision-aware commit, build and publish. The framework also supports a public Pages shell whose canonical data lives in one fixed private repository.
 
 The default rule is **one standalone Pages app, one explicit canonical data repository and one explicit deployment repository**. They may be the same (`self`) or the app may target one manifest-declared repository (`fixed`). For private personal data, the recommended topology is a public app repository plus a separate private data repository. The planned hub topology adds one parent Pages app at the repository root with child apps exactly under `apps/<app-id>/`; the parent composes and links those children without flattening their boundaries.
 

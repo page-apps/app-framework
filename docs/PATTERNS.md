@@ -1,4 +1,4 @@
-# Repo Apps Patterns and Platform Boundaries
+# App Framework Patterns and Platform Boundaries
 
 Status: Working architecture guide
 

@@ -4,7 +4,7 @@ This starter creates one public GitHub Pages application. Its manifest supports 
 
 1. Change the id and title in `repo-app.config.ts`.
 2. Replace the record schema and safe demo fixture. Keep canonical data here only in `self` mode.
-3. Implement domain views under `src/` using the shared Repo Apps packages.
+3. Implement domain views under `src/` using the shared App Framework packages.
 4. Run `pnpm install`, commit the resulting `pnpm-lock.yaml`, and run `pnpm check`.
 5. Enable GitHub Pages with **GitHub Actions** as its source, then push `main`.
 

@@ -1,5 +1,5 @@
 {
-  "name": "repo-apps-harness",
+  "name": "app-framework-harness",
   "version": "0.1.0",
   "private": true,
   "description": "An opinionated harness for personal, repository-backed Astro applications.",
