@@ -16,6 +16,8 @@ If this app is an agent-produced public reader, the public repository is the pub
 
 Recurring producers must follow `@repo-apps/scheduler-contract`: one durable private execution per deterministic occurrence, one state authority, lease-backed or durable-workflow ownership, bounded classified retries, an approved private release candidate, a sanitized public release manifest, expected-head promotion and deployment reconciliation against the promoted commit. Scheduler commands, run records and credentials do not belong in `repo-app.config.ts` or the Pages build.
 
+For migration work, use `docs/SCHEDULER_ADOPTION.md` from the framework. Public readers use `.scheduler/jobs/<job-id>.ts` and `scheduler/runs/<execution-id>.json` in the private editorial/scheduler boundary; private canonical-data jobs use the explicit `private-canonical` output mode and end at `committed`, never `published`. A durable-workflow adapter keeps history as the sole authority.
+
 In `self` mode, owner and repository are derived from trusted GitHub Actions metadata at build time. In `fixed` mode, the manifest declares exactly one owner/repository; this public, token-free target must not be overridden by a URL, arbitrary user input or browser storage. Do not introduce additional repository capabilities without an explicit architecture decision and user-visible permission explanation.
 
 ## Safe extension points

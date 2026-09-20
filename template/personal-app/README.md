@@ -41,4 +41,6 @@ Make release keys (for example, date plus pipeline id) idempotent, validate the 
 
 For recurring generation, keep the scheduler job and lifecycle state in the private editorial/scheduler boundary and use `@repo-apps/scheduler-contract`. The host may be local cron, GitHub Actions, Temporal or another worker, but it must use one durable state authority, single-owner execution, bounded retry, release-digest and deployment-reconciliation semantics. See the framework's `docs/SCHEDULER.md`.
 
+When adopting scheduling in an existing repository pair, follow the framework's `SCHEDULER_ADOPTION.md` guide. A public app manifest never contains scheduler commands or private run state. Private-only fixed-data refreshes may use the contract's `private-canonical` output mode and must end at `committed`, not `published`.
+
 Read `AGENTS.md` before asking a coding agent to modify this app.

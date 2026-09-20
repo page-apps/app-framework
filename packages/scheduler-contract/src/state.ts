@@ -9,9 +9,11 @@ const transitions: Readonly<Record<SchedulerRunState, readonly SchedulerRunState
   queued: ["claimed", "skipped", "cancelled", "failed"],
   claimed: ["generating", "retry-wait", "failed", "cancelled"],
   generating: ["validating", "retry-wait", "failed", "cancelled"],
-  validating: ["needs-review", "approved", "retry-wait", "failed", "cancelled"],
+  validating: ["needs-review", "approved", "committing", "retry-wait", "failed", "cancelled"],
   "needs-review": ["approved", "cancelled"],
-  approved: ["promoting", "cancelled"],
+  approved: ["promoting", "committing", "cancelled"],
+  committing: ["committed", "retry-wait", "failed", "conflicted", "cancelled"],
+  committed: [],
   promoting: ["promoted", "retry-wait", "failed", "conflicted", "cancelled"],
   promoted: ["building", "cancelled"],
   building: ["published", "retry-wait", "failed", "cancelled"],
@@ -29,10 +31,11 @@ export interface CreateSchedulerRunInput {
   readonly occurrenceKey: string;
   readonly scheduledFor: string;
   readonly createdAt: string;
+  readonly outputKind?: import("./types.js").SchedulerOutputKind;
 }
 
 export type SchedulerRunPatch = Partial<Pick<SchedulerRunRecord,
-  "startedAt" | "candidate" | "review" | "publication" | "deployment" | "failure" | "nextAttemptAt"
+  "startedAt" | "candidate" | "review" | "publication" | "deployment" | "canonicalData" | "failure" | "nextAttemptAt"
 >>;
 
 export function createSchedulerRun(input: CreateSchedulerRunInput): SchedulerRunRecord {
@@ -43,6 +46,7 @@ export function createSchedulerRun(input: CreateSchedulerRunInput): SchedulerRun
     occurrenceKey: input.occurrenceKey,
     scheduledFor: input.scheduledFor,
     attempt: 1,
+    outputKind: input.outputKind ?? "public-release",
     state: "queued",
     updatedAt: input.createdAt,
   };
@@ -59,6 +63,16 @@ export function transitionSchedulerRun(
   validateSchedulerRun(run);
   if (!transitions[run.state].includes(nextState)) {
     throw new Error(`Invalid scheduler run transition: ${run.state} -> ${nextState}.`);
+  }
+  const privateOutput = run.outputKind === "private-canonical";
+  if (nextState === "committing" && !privateOutput) {
+    throw new Error("Only private-canonical runs may enter committing.");
+  }
+  if (nextState === "promoting" && privateOutput) {
+    throw new Error("Private-canonical runs cannot enter promoting.");
+  }
+  if (nextState === "committed" && !privateOutput) {
+    throw new Error("Only private-canonical runs may enter committed.");
   }
   const retrying = run.state === "retry-wait" && nextState === "claimed";
   const next: SchedulerRunRecord = {

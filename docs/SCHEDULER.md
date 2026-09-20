@@ -2,7 +2,7 @@
 
 Status: Normative v1 contract
 
-This contract defines how an external scheduler drives the agent-produced public-reader pattern. It is intentionally independent of cron, GitHub Actions and any particular model provider.
+This contract defines how an external scheduler drives recurring agent-produced work. It supports both the public-reader pattern and recurring jobs whose only durable output is private canonical data. It is intentionally independent of cron, GitHub Actions and any particular model provider.
 
 ## Boundary
 
@@ -25,6 +25,20 @@ public workflow + Pages deployment
 anonymous reader
 ```
 
+For a private canonical-data job, the publication half is absent:
+
+```text
+private scheduler host
+  trigger + execution authority + secrets
+           │
+           ▼
+private canonical-data repository
+  canonical data + private generated data
+           │
+           ▼
+private commit / canonical snapshot
+```
+
 The scheduler is privileged automation and never executes in the public Pages app. The public app manifest must not contain scheduler commands, private checkout paths, tokens, model credentials or private run state.
 
 The framework contract owns identities, lifecycle semantics, release integrity and recovery. The app owns generation, domain validation, editorial policy and model selection. The host owns triggering, direct process spawning, secret injection and one durable lifecycle authority. A simple host uses a compare-and-swap run store plus a lease; a durable workflow engine may use workflow history and workflow identity instead.
@@ -41,7 +55,8 @@ Keep these values distinct:
 | `attempt` | Retry number inside the same run | `1`, then `2` |
 | `releaseKey` | Public idempotency/content slot | `2026-09-20--ai` |
 | `digest` | SHA-256 identity of sorted public paths and file hashes | 64 lowercase hex characters |
-| `commitSha` | Public promotion result | Git commit SHA |
+| `outputKey` | Private canonical-output idempotency slot | `2026-09-20--refresh` |
+| `commitSha` | Resulting public promotion or private canonical commit | Git commit SHA |
 | deployment identity | Workflow/Pages observation for that commit | host/API-specific id |
 
 One scheduler job owns one independently retryable output pipeline. If an app publishes two daily pipelines, define two jobs even when the host triggers them at the same time. This prevents one failed pipeline from making the other pipeline's occurrence ambiguous.
@@ -93,6 +108,34 @@ export default defineSchedulerJob({
 
 Hosts must spawn `pipeline.command` with its argument array directly. Do not interpolate the manifest through a shell. Secret references and values belong to the host configuration, not this portable job manifest.
 
+A private canonical-data job uses the same common trigger, pipeline, review,
+concurrency and retry fields, but replaces `editorial` and `publication` with
+explicit private boundaries:
+
+```ts
+export default defineSchedulerJob({
+  schema: SCHEDULER_JOB_SCHEMA,
+  id: "tool-radar:refresh",
+  appId: "tool-radar",
+  enabled: true,
+  trigger: { kind: "cron", expression: "0 3 * * *", timeZone: "Australia/Sydney", misfire: "run-latest" },
+  pipeline: { id: "refresh", command: "pnpm", args: ["scheduler:run", "--", "--pipeline=refresh"] },
+  output: {
+    kind: "private-canonical",
+    repository: { owner: "page-apps", name: "tool-radar-data", branch: "main" },
+    canonicalRoot: "data",
+    generatedRoot: "generated",
+  },
+  scheduler: {
+    repository: { owner: "page-apps", name: "tool-radar-data", branch: "main" },
+    runRoot: ".scheduler/runs",
+  },
+  review: { mode: "none" },
+  concurrency: { overlap: "skip" },
+  retry: { maxAttempts: 3, strategy: "fixed", baseDelaySeconds: 60, maxDelaySeconds: 300 },
+});
+```
+
 A cron trigger records intent; its expression is interpreted by the host adapter. An external trigger requires the host to supply `occurrenceKey` and `scheduledFor`. For a missed cron occurrence, `skip` records no late run and `run-latest` runs only the newest missed slot. Never backfill an unbounded series implicitly.
 
 ## Run lifecycle
@@ -106,10 +149,22 @@ queued → claimed → generating → validating
 approved → promoting → promoted → building → published
 ```
 
+Private canonical-data jobs use a separate terminal path:
+
+```text
+queued → claimed → generating → validating → committing → committed
+                                  └─→ needs-review → approved → committing
+```
+
+`committed` records private `canonicalData` (`outputKey`, digest and commit
+SHA). It never implies a public release, build or deployment. A conflicting
+private output key is terminal `conflicted`; a matching digest is idempotent
+`already-committed` success.
+
 Permitted failure paths are:
 
 ```text
-claimed / generating / validating / promoting / building
+claimed / generating / validating / committing / promoting / building
   → retry-wait → claimed
 
 queued → skipped
@@ -117,7 +172,7 @@ promoting → conflicted
 any active state → failed or cancelled
 ```
 
-Retries retain `executionId` and increment `attempt`. An adapter's internal task or Activity retries do not increment this value; `attempt` counts retries of the logical pipeline after a contract-level failure. Terminal `published`, `failed`, `conflicted`, `skipped` and `cancelled` runs never transition again. A corrected manual-review item may move from `needs-review` to `approved`; it is not an automatic retry.
+Retries retain `executionId` and increment `attempt`. An adapter's internal task or Activity retries do not increment this value; `attempt` counts retries of the logical pipeline after a contract-level failure. Terminal `committed`, `published`, `failed`, `conflicted`, `skipped` and `cancelled` runs never transition again. A corrected manual-review item may move from `needs-review` to `approved`; it is not an automatic retry.
 
 The run store is private. Records may contain ids, revisions, sanitized error summaries and public deployment links. They must not contain prompts, draft bodies, source notes, tokens, environment values or model transcripts.
 
@@ -139,13 +194,17 @@ Adapter mappings:
 - A hosted worker may implement `SchedulerLeaseProvider` with atomic acquire, renew and release operations.
 - Temporal uses a deterministic Workflow ID derived from `jobId + occurrenceKey`; the contract `executionId` maps to that Workflow ID, never to Temporal's mutable Run ID. See [the Temporal adapter profile](TEMPORAL.md).
 
-These mechanisms prevent ordinary overlap but cannot fence a non-cooperating publisher or make Git and the orchestration backend transactional. The expected public branch head and release reconciliation remain the final correctness boundary.
+These mechanisms prevent ordinary overlap but cannot fence a non-cooperating publisher or make Git and the orchestration backend transactional. The expected branch head and output reconciliation remain the final correctness boundary; the branch is public for public-release jobs and private canonical-data for private jobs.
 
-## Release records
+## Public release records
 
 The private producer emits `ReleaseCandidate`. It contains the source draft id/revision, approved review, private source-to-public path map, per-file SHA-256 hashes and aggregate digest. It stays private.
 
 The public repository receives only the selected files and `PublicReleaseManifest`. The public manifest includes public paths, per-file hashes, aggregate digest, timestamps and safe generator/reviewer labels. It excludes private repository paths, source revisions, prompts, raw research and run errors.
+
+Private-canonical jobs do not create a `ReleaseCandidate` or
+`PublicReleaseManifest`. Their run record carries `canonicalData` with the
+stable output key, canonical digest and private commit SHA.
 
 The aggregate digest is SHA-256 over public files sorted by path, using this canonical input for every file:
 
@@ -153,9 +212,11 @@ The aggregate digest is SHA-256 over public files sorted by path, using this can
 <public path> NUL <lowercase file sha256> LF
 ```
 
-The package supplies `sha256Text()`, `computeReleaseDigest()`, candidate/public validators and `reconcilePublicRelease()`.
+The package supplies `sha256Text()`, `computeReleaseDigest()`,
+`computeCanonicalDataDigest()`, candidate/public validators,
+`reconcilePublicRelease()` and `reconcilePrivateCanonicalOutput()`.
 
-## Promotion handshake
+## Public promotion handshake
 
 Every publisher must perform these steps:
 
@@ -173,6 +234,20 @@ Every publisher must perform these steps:
 Promotion by pull request follows the same release-key and digest rules. `promoted` occurs only after merge and records the merged public commit.
 
 If public promotion succeeds and private close-out fails, the next attempt reads the public release manifest. A matching digest repairs the private run as already promoted; another digest becomes a conflict. The publisher must not create a duplicate release.
+
+## Private canonical commit handshake
+
+For a `private-canonical` job, the adapter must:
+
+1. Establish and verify the job's execution authority.
+2. Generate and validate only inside the declared private canonical boundary.
+3. Compute the private output digest and reconcile `outputKey + digest` against the existing private output record.
+4. Treat a matching digest as idempotent success and a different digest for the same key as `conflicted`.
+5. Commit only the configured canonical/generated roots using the expected private branch head.
+6. Record the resulting private commit in `canonicalData` and mark the run `committed`.
+
+The adapter must not create a public release manifest or wait for a Pages,
+build or deployment observation for this mode.
 
 ## Retry classification
 
@@ -218,12 +293,12 @@ A conforming adapter must:
 - spawn the app runner without shell interpolation;
 - persist every accepted state transition durably and privately in exactly one state authority;
 - implement bounded retry classification and attempts;
-- perform expected-head publication and digest reconciliation;
+- perform expected-head publication and digest reconciliation for public jobs, or expected-head private commit and canonical-output reconciliation for private jobs;
 - sanitize logs and run errors; and
-- reconcile deployment status against the exact promoted commit.
+- reconcile deployment status against the exact promoted commit for public jobs only.
 
 The adapter may report completion, meaningful failure or required user action to an external monitor. It should remain quiet when no occurrence is due and when monitored state is unchanged.
 
 ## Out of scope
 
-The v1 contract does not provide a hosted scheduler, database, general DAG engine, cross-job resource locking, model orchestration, prompt format, editorial schema, automatic human-review policy or migration layer for pre-contract scripts. Those remain host- or application-specific. Temporal is a supported adapter profile, not a required framework dependency.
+The contract does not provide a hosted scheduler, database, general DAG engine, cross-job resource locking, model orchestration, prompt format, editorial schema, automatic human-review policy or migration layer for pre-contract scripts. Those remain host- or application-specific. Temporal is a supported adapter profile, not a required framework dependency.

@@ -6,6 +6,7 @@ import {
   SCHEDULER_RUN_STATES,
   type PublicReleaseManifest,
   type ReleaseCandidate,
+  type SchedulerCanonicalDataRecord,
   type SchedulerJobManifest,
   type SchedulerLease,
   type SchedulerRepositoryTarget,
@@ -22,7 +23,7 @@ export function defineSchedulerJob<const T extends SchedulerJobManifest>(job: T)
 }
 
 export function validateSchedulerJob(job: SchedulerJobManifest): void {
-  assertKnownKeys(job, ["schema", "id", "appId", "enabled", "trigger", "pipeline", "editorial", "publication", "review", "concurrency", "retry"], "Scheduler job");
+  assertKnownKeys(job, ["schema", "id", "appId", "enabled", "trigger", "pipeline", "editorial", "publication", "output", "scheduler", "review", "concurrency", "retry"], "Scheduler job");
   if (job.schema !== SCHEDULER_JOB_SCHEMA) throw new Error(`Scheduler job schema must be ${SCHEDULER_JOB_SCHEMA}.`);
   assertId(job.id, "Scheduler job id");
   assertId(job.appId, "Scheduler app id");
@@ -49,21 +50,48 @@ export function validateSchedulerJob(job: SchedulerJobManifest): void {
   for (const arg of job.pipeline.args ?? []) {
     if (arg.includes("\0")) throw new Error("Scheduler pipeline arguments must not contain NUL bytes.");
   }
-  validateRepository(job.editorial.repository, "editorial");
-  validateRepository(job.publication.repository, "publication");
-  assertKnownKeys(job.editorial, ["repository", "draftRoot", "runRoot"], "Scheduler editorial boundary");
-  assertKnownKeys(job.publication, ["repository", "contentRoot", "releaseManifestRoot", "mode"], "Scheduler publication boundary");
-  if (sameRepository(job.editorial.repository, job.publication.repository)) {
-    throw new Error("Editorial and publication repositories must be separate scheduler boundaries.");
-  }
-  assertSafePath(job.editorial.draftRoot, "Editorial draftRoot");
-  assertSafePath(job.editorial.runRoot, "Editorial runRoot");
-  assertDistinctRoots(job.editorial.draftRoot, job.editorial.runRoot, "Editorial draftRoot and runRoot");
-  assertSafePath(job.publication.contentRoot, "Publication contentRoot");
-  assertSafePath(job.publication.releaseManifestRoot, "Publication releaseManifestRoot");
-  assertDistinctRoots(job.publication.contentRoot, job.publication.releaseManifestRoot, "Publication contentRoot and releaseManifestRoot");
-  if (job.publication.mode !== "direct" && job.publication.mode !== "pull-request") {
-    throw new Error("Publication mode must be direct or pull-request.");
+  if (job.output !== undefined) {
+    assertKnownKeys(job.output, ["kind", "repository", "canonicalRoot", "generatedRoot"], "Scheduler private output");
+    if (job.output.kind !== "private-canonical") {
+      throw new Error("Scheduler output kind must be private-canonical.");
+    }
+    if (job.editorial !== undefined || job.publication !== undefined) {
+      throw new Error("Private-canonical jobs must not declare editorial or publication boundaries.");
+    }
+    if (job.scheduler === undefined) throw new Error("Private-canonical jobs require a scheduler boundary.");
+    assertKnownKeys(job.scheduler, ["repository", "runRoot"], "Scheduler private state boundary");
+    validateRepository(job.output.repository, "private output");
+    validateRepository(job.scheduler.repository, "scheduler");
+    assertSafePath(job.output.canonicalRoot, "Private canonicalRoot");
+    if (job.output.generatedRoot !== undefined) {
+      assertSafePath(job.output.generatedRoot, "Private generatedRoot");
+      assertDistinctRoots(job.output.canonicalRoot, job.output.generatedRoot, "Private canonicalRoot and generatedRoot");
+    }
+    assertSafePath(job.scheduler.runRoot, "Scheduler runRoot");
+    if (sameRepository(job.output.repository, job.scheduler.repository)) {
+      assertDistinctRoots(job.output.canonicalRoot, job.scheduler.runRoot, "Private canonicalRoot and scheduler runRoot");
+      if (job.output.generatedRoot !== undefined) {
+        assertDistinctRoots(job.output.generatedRoot, job.scheduler.runRoot, "Private generatedRoot and scheduler runRoot");
+      }
+    }
+  } else {
+    if (job.scheduler !== undefined) throw new Error("Public-release jobs must not declare a private scheduler boundary.");
+    validateRepository(job.editorial.repository, "editorial");
+    validateRepository(job.publication.repository, "publication");
+    assertKnownKeys(job.editorial, ["repository", "draftRoot", "runRoot"], "Scheduler editorial boundary");
+    assertKnownKeys(job.publication, ["repository", "contentRoot", "releaseManifestRoot", "mode"], "Scheduler publication boundary");
+    if (sameRepository(job.editorial.repository, job.publication.repository)) {
+      throw new Error("Editorial and publication repositories must be separate scheduler boundaries.");
+    }
+    assertSafePath(job.editorial.draftRoot, "Editorial draftRoot");
+    assertSafePath(job.editorial.runRoot, "Editorial runRoot");
+    assertDistinctRoots(job.editorial.draftRoot, job.editorial.runRoot, "Editorial draftRoot and runRoot");
+    assertSafePath(job.publication.contentRoot, "Publication contentRoot");
+    assertSafePath(job.publication.releaseManifestRoot, "Publication releaseManifestRoot");
+    assertDistinctRoots(job.publication.contentRoot, job.publication.releaseManifestRoot, "Publication contentRoot and releaseManifestRoot");
+    if (job.publication.mode !== "direct" && job.publication.mode !== "pull-request") {
+      throw new Error("Publication mode must be direct or pull-request.");
+    }
   }
   if (!["none", "human", "automatic", "automatic-or-human"].includes(job.review.mode)) {
     throw new Error("Scheduler review mode is invalid.");
@@ -88,7 +116,7 @@ export function validateSchedulerJob(job: SchedulerJobManifest): void {
 }
 
 export function validateSchedulerRun(run: SchedulerRunRecord): void {
-  assertKnownKeys(run, ["schema", "executionId", "jobId", "occurrenceKey", "scheduledFor", "attempt", "state", "updatedAt", "startedAt", "candidate", "review", "publication", "deployment", "failure", "nextAttemptAt"], "Scheduler run");
+  assertKnownKeys(run, ["schema", "executionId", "jobId", "occurrenceKey", "scheduledFor", "attempt", "outputKind", "state", "updatedAt", "startedAt", "candidate", "review", "publication", "deployment", "canonicalData", "failure", "nextAttemptAt"], "Scheduler run");
   if (run.schema !== SCHEDULER_RUN_SCHEMA) throw new Error(`Scheduler run schema must be ${SCHEDULER_RUN_SCHEMA}.`);
   assertOpaque(run.executionId, "Scheduler execution id");
   assertId(run.jobId, "Scheduler run job id");
@@ -98,6 +126,16 @@ export function validateSchedulerRun(run: SchedulerRunRecord): void {
   if (run.startedAt !== undefined) assertTimestamp(run.startedAt, "startedAt");
   if (!Number.isInteger(run.attempt) || run.attempt < 1) throw new Error("Scheduler run attempt must be a positive integer.");
   if (!(SCHEDULER_RUN_STATES as readonly string[]).includes(run.state)) throw new Error("Scheduler run state is invalid.");
+  if (run.outputKind !== undefined && run.outputKind !== "public-release" && run.outputKind !== "private-canonical") {
+    throw new Error("Scheduler run outputKind is invalid.");
+  }
+  const privateOutput = run.outputKind === "private-canonical";
+  if (privateOutput && ["promoting", "promoted", "building", "published"].includes(run.state)) {
+    throw new Error(`Private-canonical run state ${run.state} is invalid.`);
+  }
+  if (!privateOutput && ["committing", "committed"].includes(run.state)) {
+    throw new Error(`Public-release run state ${run.state} is invalid.`);
+  }
   if (!["queued", "skipped", "cancelled"].includes(run.state) && run.startedAt === undefined) {
     throw new Error(`Scheduler run state ${run.state} requires startedAt.`);
   }
@@ -108,8 +146,11 @@ export function validateSchedulerRun(run: SchedulerRunRecord): void {
     assertOpaque(run.candidate.draftId, "Candidate draft id");
     assertOpaque(run.candidate.sourceRevision, "Candidate source revision");
   }
-  if (["approved", "promoting", "promoted", "building", "published"].includes(run.state) && run.candidate === undefined) {
+  if (!privateOutput && ["approved", "promoting", "promoted", "building", "published"].includes(run.state) && run.candidate === undefined) {
     throw new Error(`Scheduler run state ${run.state} requires a release candidate.`);
+  }
+  if (privateOutput && run.candidate !== undefined) {
+    throw new Error("Private-canonical runs must not contain a release candidate.");
   }
   if (run.review !== undefined) {
     assertKnownKeys(run.review, ["status", "checkedAt", "actor"], "Scheduler review record");
@@ -122,6 +163,9 @@ export function validateSchedulerRun(run: SchedulerRunRecord): void {
   if (["approved", "promoting", "promoted", "building", "published"].includes(run.state) && run.review?.status !== "approved") {
     throw new Error(`Scheduler run state ${run.state} requires approval.`);
   }
+  if (privateOutput && ["promoting", "promoted", "building", "published"].includes(run.state)) {
+    throw new Error(`Private-canonical run state ${run.state} cannot use public release approval.`);
+  }
   if (run.publication !== undefined) {
     assertKnownKeys(run.publication, ["releaseKey", "digest", "manifestPath", "commitSha", "commitUrl"], "Scheduler publication record");
     assertReleaseKey(run.publication.releaseKey, "Publication release key");
@@ -133,10 +177,14 @@ export function validateSchedulerRun(run: SchedulerRunRecord): void {
       throw new Error("Publication identity must match the approved candidate.");
     }
   }
-  if (["promoted", "building", "published"].includes(run.state) && run.publication === undefined) {
+  if (!privateOutput && ["promoted", "building", "published"].includes(run.state) && run.publication === undefined) {
     throw new Error(`Scheduler run state ${run.state} requires a publication record.`);
   }
+  if (privateOutput && run.publication !== undefined) {
+    throw new Error("Private-canonical runs must not contain a publication record.");
+  }
   if (run.deployment !== undefined) {
+    if (privateOutput) throw new Error("Private-canonical runs must not contain a deployment record.");
     assertKnownKeys(run.deployment, ["commitSha", "observedAt", "workflowRunId", "deploymentId", "url"], "Scheduler deployment record");
     assertOpaque(run.deployment.commitSha, "Deployment commit SHA");
     assertTimestamp(run.deployment.observedAt, "deployment.observedAt");
@@ -148,6 +196,16 @@ export function validateSchedulerRun(run: SchedulerRunRecord): void {
     if (run.deployment.commitSha !== run.publication.commitSha) {
       throw new Error("Published deployment must match the promoted public commit.");
     }
+  }
+  if (run.canonicalData !== undefined) {
+    if (!privateOutput) throw new Error("Public-release runs must not contain canonicalData.");
+    if (!["committing", "committed"].includes(run.state)) {
+      throw new Error("canonicalData is valid only while committing or after committed.");
+    }
+    validateSchedulerCanonicalData(run.canonicalData);
+  }
+  if (privateOutput && run.state === "committed" && run.canonicalData === undefined) {
+    throw new Error("A committed private-canonical run requires canonicalData.");
   }
   if (run.failure !== undefined) {
     assertKnownKeys(run.failure, ["classification", "code", "message"], "Scheduler failure record");
@@ -178,6 +236,20 @@ export function validateSchedulerLease(lease: SchedulerLease): void {
   assertTimestamp(lease.expiresAt, "lease.expiresAt");
   assertOpaque(lease.fencingToken, "Scheduler fencing token");
   if (Date.parse(lease.expiresAt) <= Date.parse(lease.acquiredAt)) throw new Error("Scheduler lease must expire after acquisition.");
+}
+
+export function validateSchedulerCanonicalData(record: SchedulerCanonicalDataRecord): void {
+  assertKnownKeys(record, ["outputKey", "digest", "commitSha", "commitUrl"], "Scheduler canonical data record");
+  validateSchedulerCanonicalDataIdentity(record);
+  assertOpaque(record.commitSha, "Canonical data commit SHA");
+  if (record.commitUrl !== undefined) assertOpaque(record.commitUrl, "Canonical data commit URL");
+}
+
+export function validateSchedulerCanonicalDataIdentity(
+  identity: Pick<SchedulerCanonicalDataRecord, "outputKey" | "digest">,
+): void {
+  assertReleaseKey(identity.outputKey, "Canonical output key");
+  assertSha256(identity.digest, "Canonical output digest");
 }
 
 export function validateReleaseCandidate(candidate: ReleaseCandidate): void {

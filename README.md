@@ -84,7 +84,9 @@ agent host → generate/validate/review private drafts
 
 The public reader is anonymous and token-free. It must not fetch the private editorial repository at runtime. A private editorial commit is not a publication; readers see the release only after the public repository commit and Pages deployment succeed. See [the pattern catalogue](docs/PATTERNS.md) and [ADR-003](docs/ADR-003.md).
 
-Recurring generation uses the host-side [`@repo-apps/scheduler-contract`](packages/scheduler-contract/README.md). It standardizes occurrences, durable lifecycle state, single-owner execution, retries, release digests, idempotent promotion and deployment reconciliation while leaving cron, Temporal, GitHub Actions, agent commands and editorial policy to adapters and applications. See [the scheduler contract](docs/SCHEDULER.md), [Temporal adapter profile](docs/TEMPORAL.md) and [ADR-004](docs/ADR-004.md).
+Recurring generation uses the host-side [`@repo-apps/scheduler-contract`](packages/scheduler-contract/README.md). It standardizes occurrences, durable lifecycle state, single-owner execution, retries and output reconciliation: public readers use release promotion/deployment semantics, while private canonical-data jobs use a `committed` terminal state without public release semantics. Cron, Temporal, GitHub Actions, agent commands and editorial policy remain adapter/application concerns. See [the scheduler contract](docs/SCHEDULER.md), [Temporal adapter profile](docs/TEMPORAL.md) and [ADR-004](docs/ADR-004.md).
+
+For existing repositories, use the [scheduler adoption guide](docs/SCHEDULER_ADOPTION.md). It fixes the private job-manifest and run-store locations for public readers and private canonical-data jobs.
 
 GitHub only discovers Actions workflows from `.github/workflows` at the root of
 the repository it is running. This workspace therefore keeps repository-visible

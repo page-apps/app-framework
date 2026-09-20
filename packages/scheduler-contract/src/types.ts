@@ -3,6 +3,8 @@ export const SCHEDULER_RUN_SCHEMA = "repo-apps/scheduler-run/v1" as const;
 export const RELEASE_CANDIDATE_SCHEMA = "repo-apps/release-candidate/v1" as const;
 export const PUBLIC_RELEASE_SCHEMA = "repo-apps/public-release/v1" as const;
 
+export type SchedulerOutputKind = "public-release" | "private-canonical";
+
 export interface SchedulerRepositoryTarget {
   readonly owner: string;
   readonly name: string;
@@ -20,7 +22,7 @@ export type SchedulerTrigger = {
   readonly kind: "external";
 };
 
-export interface SchedulerJobManifest {
+interface SchedulerJobManifestBase {
   readonly schema: typeof SCHEDULER_JOB_SCHEMA;
   readonly id: string;
   readonly appId: string;
@@ -32,17 +34,6 @@ export interface SchedulerJobManifest {
     /** Spawn directly with argv; hosts must not evaluate this through a shell. */
     readonly command: string;
     readonly args?: readonly string[];
-  };
-  readonly editorial: {
-    readonly repository: SchedulerRepositoryTarget;
-    readonly draftRoot: string;
-    readonly runRoot: string;
-  };
-  readonly publication: {
-    readonly repository: SchedulerRepositoryTarget;
-    readonly contentRoot: string;
-    readonly releaseManifestRoot: string;
-    readonly mode: "direct" | "pull-request";
   };
   readonly review: {
     readonly mode: "none" | "human" | "automatic" | "automatic-or-human";
@@ -59,6 +50,42 @@ export interface SchedulerJobManifest {
   };
 }
 
+export interface SchedulerPublicJobManifest extends SchedulerJobManifestBase {
+  readonly editorial: {
+    readonly repository: SchedulerRepositoryTarget;
+    readonly draftRoot: string;
+    readonly runRoot: string;
+  };
+  readonly publication: {
+    readonly repository: SchedulerRepositoryTarget;
+    readonly contentRoot: string;
+    readonly releaseManifestRoot: string;
+    readonly mode: "direct" | "pull-request";
+  };
+  /** Public jobs are the v1 default; private jobs must declare `output`. */
+  readonly output?: never;
+  readonly scheduler?: never;
+}
+
+export interface SchedulerPrivateCanonicalJobManifest extends SchedulerJobManifestBase {
+  /** A private output is committed to a private canonical-data repository only. */
+  readonly output: {
+    readonly kind: "private-canonical";
+    readonly repository: SchedulerRepositoryTarget;
+    readonly canonicalRoot: string;
+    readonly generatedRoot?: string;
+  };
+  /** The private scheduler/run-store boundary. It may be separate from the data repository. */
+  readonly scheduler: {
+    readonly repository: SchedulerRepositoryTarget;
+    readonly runRoot: string;
+  };
+  readonly editorial?: never;
+  readonly publication?: never;
+}
+
+export type SchedulerJobManifest = SchedulerPublicJobManifest | SchedulerPrivateCanonicalJobManifest;
+
 export const SCHEDULER_RUN_STATES = [
   "queued",
   "claimed",
@@ -66,6 +93,8 @@ export const SCHEDULER_RUN_STATES = [
   "validating",
   "needs-review",
   "approved",
+  "committing",
+  "committed",
   "promoting",
   "promoted",
   "building",
@@ -125,6 +154,8 @@ export interface SchedulerRunRecord {
   readonly occurrenceKey: string;
   readonly scheduledFor: string;
   readonly attempt: number;
+  /** Omitted on legacy records, where the public-release lifecycle is implied. */
+  readonly outputKind?: SchedulerOutputKind;
   readonly state: SchedulerRunState;
   readonly updatedAt: string;
   readonly startedAt?: string;
@@ -132,8 +163,22 @@ export interface SchedulerRunRecord {
   readonly review?: SchedulerReviewRecord;
   readonly publication?: SchedulerPublicationRecord;
   readonly deployment?: SchedulerDeploymentRecord;
+  /** Private canonical output identity and resulting commit. */
+  readonly canonicalData?: SchedulerCanonicalDataRecord;
   readonly failure?: SchedulerFailure;
   readonly nextAttemptAt?: string;
+}
+
+export interface SchedulerCanonicalDataRecord {
+  readonly outputKey: string;
+  readonly digest: string;
+  readonly commitSha: string;
+  readonly commitUrl?: string;
+}
+
+export interface SchedulerCanonicalDataFile {
+  readonly path: string;
+  readonly sha256: string;
 }
 
 export interface SchedulerRunSnapshot {
@@ -224,3 +269,4 @@ export interface PublicReleaseManifest {
 }
 
 export type PublicReleaseReconciliation = "create" | "already-promoted" | "conflict";
+export type SchedulerCanonicalReconciliation = "create" | "already-committed" | "conflict";
