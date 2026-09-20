@@ -10,14 +10,16 @@
   },
   "scripts": {
     "dev": "pnpm --filter @repo-apps/quick-log dev",
-    "build": "pnpm -r --if-present build",
+    "build": "pnpm site:build && pnpm -r --if-present build",
     "typecheck": "pnpm --filter './packages/*' build && pnpm -r --if-present typecheck",
     "test": "pnpm run test:unit",
     "test:unit": "pnpm -r --if-present test",
     "pretest:e2e": "pnpm --filter './packages/*' build",
     "test:e2e": "playwright test",
     "validate:data": "pnpm -r --if-present validate:data && node template/personal-app/scripts/validate-data.mjs && node template/private-data-repository/scripts/validate-data.mjs && node template/private-data-repository/scripts/generate-index.mjs --check",
-    "check": "pnpm run typecheck && pnpm run test:unit && pnpm run validate:data && pnpm run build"
+    "site:check": "node scripts/validate-site.mjs",
+    "site:build": "node scripts/build-site.mjs",
+    "check": "pnpm run typecheck && pnpm run test:unit && pnpm run validate:data && pnpm run site:check && pnpm run build"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

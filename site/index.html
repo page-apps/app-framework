@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="The patterns and contracts behind small repository-backed personal applications." />
+    <meta name="theme-color" content="#13211f" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'none'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />
+    <meta name="referrer" content="no-referrer" />
+    <title>App Framework · Patterns that hold up</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-grid" aria-hidden="true"></div>
+    <header class="topbar">
+      <a class="wordmark" href="#top" aria-label="App Framework home">
+        <span class="mark">AF</span>
+        <span><strong>App Framework</strong><small>patterns that hold up</small></span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#patterns">Patterns</a>
+        <a href="#flow">How it works</a>
+        <a href="#scheduler">Scheduler</a>
+      </nav>
+      <a class="github-link" href="https://github.com/page-apps/app-framework" target="_blank" rel="noreferrer">View source <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main id="top">
+      <section class="hero shell">
+        <div class="hero-copy">
+          <p class="kicker"><span class="pulse"></span> Repository-backed personal apps</p>
+          <h1>Make the boundary<br /><em>the feature.</em></h1>
+          <p class="lede">App Framework is a TypeScript and Astro foundation for small applications whose data, credentials, automation and publishing path stay explicit.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#patterns">Explore the patterns <span aria-hidden="true">↓</span></a>
+            <a class="button quiet" href="https://github.com/page-apps/app-framework/blob/main/docs/PATTERNS.md" target="_blank" rel="noreferrer">Read the catalogue</a>
+          </div>
+        </div>
+        <div class="hero-card" aria-label="Framework principles">
+          <div class="card-top"><span class="window-dot coral"></span><span class="window-dot amber"></span><span class="window-dot mint"></span><span class="card-label">system map</span></div>
+          <div class="map-line"><span class="map-node source">source</span><span class="connector"></span><span class="map-node runtime">runtime</span></div>
+          <div class="map-line offset"><span class="map-node private">private data</span><span class="connector"></span><span class="map-node public">public reader</span></div>
+          <div class="map-line"><span class="map-node agent">agent host</span><span class="connector"></span><span class="map-node pages">Pages</span></div>
+          <div class="map-caption"><span class="tiny-dot"></span> one declared path from intent to published artifact</div>
+        </div>
+      </section>
+
+      <section class="principles shell" aria-label="Framework principles">
+        <div><span class="number">01</span><strong>Explicit ownership</strong><p>Every app names its canonical data and deployment repository.</p></div>
+        <div><span class="number">02</span><strong>Revision-aware writes</strong><p>Stale reads become visible conflicts, never silent overwrites.</p></div>
+        <div><span class="number">03</span><strong>Publication is a state</strong><p>Committed, building and published are separate facts.</p></div>
+      </section>
+
+      <section id="patterns" class="section shell">
+        <div class="section-heading"><p class="kicker">A small catalogue</p><h2>Four patterns, one boundary language.</h2><p>Choose the topology that matches who can read the data and who is allowed to produce it.</p></div>
+        <div class="pattern-grid">
+          <article class="pattern-card featured"><div class="pattern-index">01 / SELF</div><h3>Self repository</h3><p>The app, canonical data, validation and Pages deployment live together. A good default for a personal editor such as Quick Log.</p><div class="tag-row"><span>read</span><span>write</span><span>publish</span></div></article>
+          <article class="pattern-card"><div class="pattern-index">02 / FIXED</div><h3>Fixed private data</h3><p>A public shell reads one explicitly declared private repository at runtime with a user credential. The build never absorbs the private data.</p><div class="tag-row"><span>private</span><span>session PAT</span></div></article>
+          <article class="pattern-card accent"><div class="pattern-index">03 / READER</div><h3>Agent-produced public reader</h3><p>A local or hosted coding agent researches privately, then promotes only a validated, public-safe release into the reader repository.</p><div class="tag-row"><span>AI Daily</span><span>static</span><span>anonymous</span></div></article>
+          <article class="pattern-card"><div class="pattern-index">04 / HUB</div><h3>Hub and child apps</h3><p>A parent catalogue links independent applications without flattening their source, data, credential or deployment boundaries.</p><div class="tag-row"><span>catalogue</span><span>composition</span></div></article>
+        </div>
+      </section>
+
+      <section id="flow" class="section dark-section">
+        <div class="shell">
+          <div class="section-heading inverse"><p class="kicker">The generated-reader pattern</p><h2>Private production.<br /><em>Public reading.</em></h2><p>The reader is intentionally boring at runtime: it serves released files and does not know how the content was made.</p></div>
+          <div class="flow-track" aria-label="Generated reader publication flow">
+            <article class="flow-step"><span class="step-no">01</span><div class="step-icon">⌁</div><h3>Trigger</h3><p>A scheduler starts one deterministic occurrence.</p><span class="step-label">host</span></article>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <article class="flow-step"><span class="step-no">02</span><div class="step-icon">✦</div><h3>Generate</h3><p>An agent writes drafts and provenance into a private repository.</p><span class="step-label">editorial</span></article>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <article class="flow-step"><span class="step-no">03</span><div class="step-icon">✓</div><h3>Review</h3><p>Domain validation and human or automatic review approve a candidate.</p><span class="step-label">gate</span></article>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <article class="flow-step"><span class="step-no">04</span><div class="step-icon">↗</div><h3>Promote</h3><p>Only allowlisted public files cross the repository boundary.</p><span class="step-label">release</span></article>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <article class="flow-step"><span class="step-no">05</span><div class="step-icon">◌</div><h3>Publish</h3><p>GitHub Actions builds Pages; the reader becomes visible at the promoted commit.</p><span class="step-label">public</span></article>
+          </div>
+          <div class="callout"><strong>A private commit is not a publication.</strong><span>Published means the public repository accepted the exact release and Pages deployed that exact commit.</span></div>
+        </div>
+      </section>
+
+      <section id="scheduler" class="section shell scheduler-section">
+        <div class="scheduler-layout">
+          <div class="section-heading"><p class="kicker">Durable orchestration</p><h2>The scheduler knows the lifecycle, not the prompt.</h2><p>The framework owns identity, retry classification, release integrity and recovery. Applications own generation, domain rules and editorial policy.</p><a class="text-link" href="https://github.com/page-apps/app-framework/blob/main/docs/SCHEDULER.md" target="_blank" rel="noreferrer">Read the scheduler contract <span aria-hidden="true">↗</span></a></div>
+          <div class="terminal-card"><div class="terminal-top"><span class="window-dot coral"></span><span class="window-dot amber"></span><span class="window-dot mint"></span><span>scheduler/run</span></div><pre><code><span class="dim">jobId</span>       ai-daily:main
+<span class="dim">occurrence</span>  2026-09-20T01:00+10:00
+<span class="dim">releaseKey</span>  2026-09-20--ai
+
+<span class="green">queued</span> → claimed → generating
+          → validating → <span class="amber-text">needs-review</span>
+          → approved → promoting
+          → promoted → building
+          → <span class="green">published</span>
+
+<span class="dim">digest</span>      64-char SHA-256
+<span class="dim">boundary</span>   expected-head + reconciliation</code></pre></div>
+        </div>
+        <div class="temporal-card"><div class="temporal-mark">T</div><div><strong>Temporal fits as an execution adapter.</strong><p>Workflow ID becomes the stable <code>executionId</code>; Workflow History is the lifecycle authority; side effects run in idempotent Activities. Git release reconciliation remains the final cross-system correctness boundary.</p></div><a class="text-link" href="https://github.com/page-apps/app-framework/blob/main/docs/TEMPORAL.md" target="_blank" rel="noreferrer">Temporal profile ↗</a></div>
+      </section>
+
+      <section class="section shell boundary-section">
+        <div class="section-heading"><p class="kicker">Private by default</p><h2>Small apps need fewer surprises.</h2></div>
+        <div class="boundary-grid">
+          <div class="boundary-list"><div><span>↳</span><p><strong>Private stays private.</strong> Prompts, drafts, credentials and hidden research never enter public source, artifacts, URLs or logs.</p></div><div><span>⊙</span><p><strong>Writes carry the last revision.</strong> Conflicts are shown to the user or scheduler instead of being overwritten.</p></div><div><span>◈</span><p><strong>Capabilities are narrow.</strong> App code uses shared repository and credential contracts; it does not call GitHub directly.</p></div></div>
+          <aside class="source-card"><p class="kicker">Start here</p><h3>Read the decisions behind the code.</h3><a href="https://github.com/page-apps/app-framework/blob/main/docs/ADR-003.md" target="_blank" rel="noreferrer">ADR-003 · Public reader boundary <span>↗</span></a><a href="https://github.com/page-apps/app-framework/blob/main/docs/ADR-004.md" target="_blank" rel="noreferrer">ADR-004 · Scheduler contract <span>↗</span></a><a href="https://github.com/page-apps/app-framework/tree/main/packages" target="_blank" rel="noreferrer">Shared packages <span>↗</span></a></aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer shell"><div><span class="mark small-mark">AF</span><span><strong>App Framework</strong><small>Open patterns for personal software.</small></span></div><p>Built from the <a href="https://github.com/page-apps/app-framework" target="_blank" rel="noreferrer">page-apps/app-framework</a> repository.</p></footer>
+  </body>
+</html>

@@ -28,6 +28,17 @@ pnpm test:e2e
 
 `pnpm check` type-checks, runs unit tests, validates canonical data and builds every workspace project that exposes the corresponding script. The Playwright test starts Quick Log with a deterministic in-memory repository adapter; it never calls GitHub or persists a real token.
 
+## Read the framework patterns
+
+This repository has its own static documentation site at [page-apps.github.io/app-framework](https://page-apps.github.io/app-framework/). It explains the self-repository, fixed-private-data, agent-produced public-reader and hub patterns, then traces the scheduler and publication boundaries that connect them.
+
+The site is built from `site/` and deployed by `.github/workflows/pages.yml` with GitHub Actions. Validate or build it locally with:
+
+```sh
+pnpm site:check
+pnpm site:build
+```
+
 ## Repository layout
 
 ```text
