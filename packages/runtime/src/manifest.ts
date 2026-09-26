@@ -29,6 +29,8 @@ export interface RepoAppManifest {
   readonly id: string;
   readonly title: string;
   readonly repository: RepositoryManifest;
+  /** Declares that the app may enumerate and operate on every repository the connected PAT can access. */
+  readonly repositoryScope?: "single" | "pat-authorized";
   readonly dataPipeline?: DataPipelineManifest;
   readonly auth: {
     readonly methods: readonly AuthMethod[];
@@ -59,6 +61,7 @@ export interface RepoAppRuntimeConfig {
     readonly branch: string;
     readonly dataRoot: string;
   };
+  readonly repositoryScope: "single" | "pat-authorized";
   readonly deploymentRepository: {
     readonly owner: string;
     readonly name: string;
@@ -104,6 +107,7 @@ export function resolveRuntimeConfig(
     appId: manifest.id,
     title: manifest.title,
     repository: Object.freeze(repository),
+    repositoryScope: manifest.repositoryScope ?? "single",
     deploymentRepository: Object.freeze({ owner: deploymentOwner, name: deploymentName }),
     ...(manifest.dataPipeline === undefined ? {} : { dataPipeline: Object.freeze({ ...manifest.dataPipeline }) }),
     appVersion: metadata.appVersion?.trim() || metadata.commitSha?.slice(0, 12) || "development",
@@ -118,6 +122,9 @@ function validateManifest(manifest: RepoAppManifest): void {
   if (!manifest.title.trim()) throw new Error("Repo app title is required.");
   if (manifest.repository.mode !== "self" && manifest.repository.mode !== "fixed") {
     throw new Error("Repository mode must be self or fixed.");
+  }
+  if (manifest.repositoryScope !== undefined && !["single", "pat-authorized"].includes(manifest.repositoryScope)) {
+    throw new Error("Repository scope must be single or pat-authorized.");
   }
   if (!manifest.repository.branch.trim() || !safeRelativePath(manifest.repository.dataRoot)) {
     throw new Error("Repository branch and a safe relative dataRoot are required.");
