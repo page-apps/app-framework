@@ -13,12 +13,12 @@ export type AuthorizedGitHubRoute =
   | "PUT /repos/{owner}/{repo}/topics"
   | "PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge";
 
-export interface AuthorizedGitHubResponse<T = any> {
+export interface AuthorizedGitHubResponse<T = unknown> {
   readonly data: T;
 }
 
 export interface AuthorizedGitHubClient {
-  request<T = any>(
+  request<T = unknown>(
     route: AuthorizedGitHubRoute,
     parameters?: Readonly<Record<string, string | number | boolean | readonly string[]>>,
   ): Promise<AuthorizedGitHubResponse<T>>;
