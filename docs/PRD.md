@@ -236,11 +236,11 @@ If the user needs the browser to read data that remains private, this topology i
 
 Recurring agent-produced readers use a host-neutral scheduler contract. Scheduler commands, private repository paths, run records and credentials remain outside the public app manifest and Pages artifact.
 
-The contract distinguishes stable job, occurrence, logical execution, retry attempt, public release key, release digest, promotion commit and deployment identities. It defines a private durable state machine from `queued` through `published`, lease-backed or durable-workflow execution authority, bounded retry classification, private release candidates, safe public release manifests and recovery after partial cross-repository failure.
+The contract distinguishes stable job, occurrence, logical execution and retry attempt identities for both output modes. Public jobs additionally use a release key, release digest, promotion commit and deployment identity; private-canonical jobs use an output key, canonical digest and private commit. The lifecycle ends at `published` for public readers or `committed` for private canonical-data refreshes, with lease-backed or durable-workflow execution authority and bounded retry classification in both modes.
 
 Local cron, GitHub Actions, Temporal and future workers are adapters. They own clock triggering, direct process spawning, secret injection and one durable lifecycle authority, but must preserve the same lifecycle and promotion handshake. Applications own generation, domain validation, editorial policy and model selection.
 
-The expected public branch head plus release-key/digest reconciliation is the final publication correctness boundary. A matching existing release is idempotent success; a different digest for the same release key is a conflict. A run becomes `published` only after the observed Pages deployment matches the promoted public commit.
+For public jobs, the expected public branch head plus release-key/digest reconciliation is the final publication correctness boundary. A matching existing release is idempotent success; a different digest for the same release key is a conflict. A run becomes `published` only after the observed Pages deployment matches the promoted public commit. Private-canonical jobs instead reconcile output-key/digest identity against the private canonical repository, commit only configured private roots and end at `committed`; they never require a public manifest or deployment observation.
 
 ## 5. Non-goals
 

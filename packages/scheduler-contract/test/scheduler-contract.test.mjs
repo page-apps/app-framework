@@ -5,10 +5,12 @@ import {
   RELEASE_CANDIDATE_SCHEMA,
   SCHEDULER_JOB_SCHEMA,
   assertPromotableCandidate,
+  computeCanonicalDataDigest,
   computeReleaseDigest,
   createSchedulerRun,
   defineSchedulerJob,
   isLeaseExpired,
+  reconcilePrivateCanonicalOutput,
   reconcilePublicRelease,
   retryDelaySeconds,
   sha256Text,
@@ -62,10 +64,43 @@ const jobDefinition = {
   retry: { maxAttempts: 3, strategy: "exponential", baseDelaySeconds: 60, maxDelaySeconds: 900 },
 };
 
+const privateJobDefinition = {
+  schema: SCHEDULER_JOB_SCHEMA,
+  id: "tool-radar:refresh",
+  appId: "tool-radar",
+  enabled: true,
+  trigger: { kind: "cron", expression: "0 3 * * *", timeZone: "Australia/Sydney", misfire: "run-latest" },
+  pipeline: { id: "refresh", command: "pnpm", args: ["scheduler:run", "--", "--pipeline=refresh"] },
+  output: {
+    kind: "private-canonical",
+    repository: { owner: "page-apps", name: "tool-radar-data", branch: "main" },
+    canonicalRoot: "data",
+    generatedRoot: "generated",
+  },
+  scheduler: {
+    repository: { owner: "page-apps", name: "tool-radar-data", branch: "main" },
+    runRoot: ".scheduler/runs",
+  },
+  review: { mode: "none" },
+  concurrency: { overlap: "skip" },
+  retry: { maxAttempts: 3, strategy: "fixed", baseDelaySeconds: 60, maxDelaySeconds: 300 },
+};
+
 test("defines a host-neutral scheduled reader job", () => {
   const job = defineSchedulerJob(jobDefinition);
   assert.equal(job.pipeline.id, "ai");
   assert.equal(Object.isFrozen(job), true);
+});
+
+test("defines a private-canonical job without public release boundaries", () => {
+  const job = defineSchedulerJob(privateJobDefinition);
+  assert.equal(job.output.kind, "private-canonical");
+  assert.equal(job.output.canonicalRoot, "data");
+  assert.equal(Object.isFrozen(job), true);
+  assert.throws(() => defineSchedulerJob({
+    ...privateJobDefinition,
+    publication: jobDefinition.publication,
+  }), /must not declare editorial or publication/);
 });
 
 test("rejects unsafe or ambiguous scheduler boundaries", () => {
@@ -107,6 +142,34 @@ test("enforces the scheduler lifecycle through publication and matching deployme
   run = transitionSchedulerRun(run, "published", later, { deployment: { commitSha: "public-commit", observedAt: later, url: "https://page-apps.github.io/ai-daily/" } });
   assert.equal(run.state, "published");
   assert.throws(() => transitionSchedulerRun(run, "claimed", later), /Invalid scheduler run transition/);
+});
+
+test("supports a private canonical-data lifecycle without promotion or deployment", () => {
+  const outputDigest = computeCanonicalDataDigest([
+    { path: "data/tools.json", sha256: sha256Text("tools") },
+    { path: "generated/summaries.json", sha256: sha256Text("summaries") },
+  ]);
+  let run = createSchedulerRun({
+    executionId: "private-run-1",
+    jobId: privateJobDefinition.id,
+    occurrenceKey: now,
+    scheduledFor: now,
+    createdAt: now,
+    outputKind: "private-canonical",
+  });
+  run = transitionSchedulerRun(run, "claimed", now, { startedAt: now });
+  run = transitionSchedulerRun(run, "generating", now);
+  run = transitionSchedulerRun(run, "validating", now);
+  run = transitionSchedulerRun(run, "committing", now);
+  run = transitionSchedulerRun(run, "committed", later, {
+    canonicalData: { outputKey: "2026-09-20--refresh", digest: outputDigest, commitSha: "private-commit" },
+  });
+  assert.equal(run.state, "committed");
+  assert.equal(run.canonicalData.commitSha, "private-commit");
+  assert.throws(() => transitionSchedulerRun(run, "published", later), /Invalid scheduler run transition/);
+  assert.equal(reconcilePrivateCanonicalOutput(undefined, { outputKey: "2026-09-20--refresh", digest: outputDigest }), "create");
+  assert.equal(reconcilePrivateCanonicalOutput(run.canonicalData, { outputKey: "2026-09-20--refresh", digest: outputDigest }), "already-committed");
+  assert.equal(reconcilePrivateCanonicalOutput(run.canonicalData, { outputKey: "2026-09-20--refresh", digest: "f".repeat(64) }), "conflict");
 });
 
 test("keeps retries in one logical run and increments attempts", () => {

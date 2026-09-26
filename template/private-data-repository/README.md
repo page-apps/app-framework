@@ -14,3 +14,5 @@ Create a fine-grained PAT for only this repository with `Contents: read and writ
 Replace the example record contract, validator and generator together before use.
 
 This template is for authenticated private data, not for an anonymous public content reader. If an agent generates content that everyone should see, use the agent-produced public-reader pattern: keep drafts here or in another private editorial repository, then promote public-safe releases into the public reader repository before Pages deployment.
+
+Private-only recurring refreshes may use `@repo-apps/scheduler-contract`'s `private-canonical` output mode. Such jobs declare the private data and scheduler boundaries, record `canonicalData` and finish at `committed`; they must not add a public release manifest or claim a Pages deployment. See the framework's `SCHEDULER_ADOPTION.md` guide for the exact boundary and lifecycle.

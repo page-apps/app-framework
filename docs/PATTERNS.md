@@ -26,8 +26,11 @@ Every pattern keeps these rules:
 | Agent-produced public reader | Private editorial/agent repository plus a public reader repository | Anonymous readers see the latest deployed public commit | Generate → validate/review → promote public content → build/deploy | AI Daily Briefs, digests, blogs and generated knowledge sites |
 | Authenticated workspace in a public shell | Public marketing/blog/demo routes plus public workspace code that reads one private repository after connection | Runtime API reads are current | Same as fixed private data | A public site with owner-only tools or views |
 | Hub with bounded children | Parent at the repository root and children at `apps/<app-id>/` | Defined independently per parent and child | Parent and child lifecycles remain separate | Navigation and summaries across several repo apps |
+| PAT-bounded multi-repository dashboard | One public Pages app explicitly declares `repositoryScope: "pat-authorized"` | Runtime API reads are current | Writes are limited to the dashboard's declared operations and the PAT's selected repositories | Account or organization dashboards that must span repositories |
 
 The authenticated-workspace pattern is a specialization of the fixed-private-data pattern, not a new authentication system.
+
+The PAT-bounded multi-repository dashboard is an explicit exception to the usual single-repository boundary. It must declare `repositoryScope: "pat-authorized"`, use `@repo-apps/authorized-github`, and expose no arbitrary owner/repository selector beyond repositories returned by GitHub for the connected PAT. GitHub's granted repository access remains the data boundary; the app must not persist or transmit the PAT itself. The API package owns authenticated transport and only exposes its documented dashboard routes. Use this mode only when the product is inherently cross-repository, such as a repository and pull-request dashboard.
 
 For the proposed mixed blog/personal app, use the third pattern: keep the Astro routes and components in the public build, keep canonical records and generated indexes in the fixed private repository, and let the authenticated workspace fetch them at runtime. This gives record changes immediate runtime visibility without adding module federation or rebuilding the blog.
 
@@ -79,7 +82,7 @@ For AI Daily, the local Codex/Copilot runner creates bundles in the private edit
 - Treat public content, HTML, JavaScript, source maps, generated indexes and URLs as public even when the source generator is private.
 - Never claim that a private editorial commit is published. The release is visible only after the public commit and Pages deployment complete.
 
-Recurring producers use [the scheduler contract](SCHEDULER.md). The scheduler remains outside the Pages client and records one durable private execution per deterministic occurrence. It establishes lease-backed or durable-workflow ownership, promotes an approved release through an expected-head public commit, reconciles the release key and digest on retries, and marks `Published` only after the Pages deployment matches the promoted commit. Local cron, GitHub Actions and [Temporal](TEMPORAL.md) are adapters over this contract; none defines a different lifecycle.
+Recurring producers use [the scheduler contract](SCHEDULER.md). The scheduler remains outside the Pages client and records one durable private execution per deterministic occurrence. Public-reader jobs promote an approved release through an expected-head public commit, reconcile the release key and digest on retries, and mark `Published` only after the Pages deployment matches the promoted commit. Private canonical-data jobs reconcile output-key and digest identity against an expected-head private commit and mark `Committed`, without a public release or deployment step. Local cron, GitHub Actions and [Temporal](TEMPORAL.md) are adapters over this contract; none defines a different lifecycle.
 
 ## Authenticated workspace in a public Astro site
 
